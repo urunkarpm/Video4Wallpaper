@@ -5,6 +5,13 @@
 
 // ponytail: [Programmatic GDI App Logo Icon] -> [Embedded Multi-DPI .ico resource file]
 
+#ifndef NIN_SELECT
+#define NIN_SELECT (WM_USER + 0)
+#endif
+#ifndef NIN_KEYSELECT
+#define NIN_KEYSELECT (WM_USER + 1)
+#endif
+
 namespace {
 HICON CreateAppLogoIcon() {
     int cx = GetSystemMetrics(SM_CXSMICON);
@@ -198,7 +205,9 @@ void SystemTray::ShowContextMenu(HWND hWnd) {
 
     POINT pt;
     GetCursorPos(&pt);
-    SetForegroundWindow(hWnd);
+    HWND hTopLevel = GetAncestor(hWnd, GA_ROOT);
+    if (!hTopLevel) hTopLevel = hWnd;
+    SetForegroundWindow(hTopLevel);
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL);
     PostMessageW(hWnd, WM_NULL, 0, 0);
     DestroyMenu(hMenu);
@@ -208,10 +217,11 @@ LRESULT SystemTray::HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, 
     if (!s_instance) return 0;
 
     if (message == WM_TRAYICON) {
-        if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+        UINT evt = LOWORD(lParam);
+        if (evt == WM_RBUTTONUP || evt == WM_CONTEXTMENU || evt == NIN_SELECT || evt == NIN_KEYSELECT || evt == WM_LBUTTONUP) {
             s_instance->ShowContextMenu(hWnd);
             return 0;
-        } else if (lParam == WM_LBUTTONDBLCLK) {
+        } else if (evt == WM_LBUTTONDBLCLK) {
             if (s_instance->m_callbacks.onSelectVideo) {
                 std::wstring selected = PromptSelectVideoFile(hWnd);
                 if (!selected.empty()) {
