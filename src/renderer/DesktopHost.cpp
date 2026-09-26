@@ -6,7 +6,7 @@
 #include "core/Logger.h"
 
 // ponytail: [Basic Win32 Desktop Window Injection] -> [Multi-monitor virtual screen positioning and DPI-aware scaling manager]
-// ponytail comment: Passes mouse input through (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE) and uses WS_CHILD style when parented to WorkerW
+// ponytail comment: Passes mouse input through (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE) and uses WS_CHILD style only when parented to WorkerW
 // so desktop icons and right-click context menus work 100% natively over the live video wallpaper.
 
 HWND DesktopHost::GetWorkerWHandle() {
@@ -20,36 +20,42 @@ HWND DesktopHost::GetWorkerWHandle() {
         // Send 0x052C to Progman to spawn a WorkerW window behind desktop icons
         SendMessageTimeoutW(hProgman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &result);
     } else {
-        Logger::LogWarning("Progman/Shell window not found. Attempting window enumeration fallback.");
+        Logger::LogWarning("Progman/Shell window not found.");
     }
 
     HWND hWorkerW = NULL;
-    for (int retry = 0; retry < 2 && !hWorkerW; ++retry) {
+
+    // Pass 1: Find WorkerW window immediately following the window containing SHELLDLL_DefView
+    EnumWindows([](HWND topHWnd, LPARAM lParam) -> BOOL {
+        HWND hDefView = FindWindowExW(topHWnd, NULL, L"SHELLDLL_DefView", NULL);
+        if (hDefView != NULL) {
+            HWND* pWorkerW = reinterpret_cast<HWND*>(lParam);
+            *pWorkerW = FindWindowExW(NULL, topHWnd, L"WorkerW", NULL);
+        }
+        return TRUE;
+    }, reinterpret_cast<LPARAM>(&hWorkerW));
+
+    // Pass 2: Fallback search for any WorkerW window created by 0x052C that does NOT contain SHELLDLL_DefView
+    if (!hWorkerW) {
         EnumWindows([](HWND topHWnd, LPARAM lParam) -> BOOL {
-            HWND hDefView = FindWindowExW(topHWnd, NULL, L"SHELLDLL_DefView", NULL);
-            if (hDefView != NULL) {
-                // Find the WorkerW window that immediately follows the window containing SHELLDLL_DefView
-                HWND* pWorkerW = reinterpret_cast<HWND*>(lParam);
-                *pWorkerW = FindWindowExW(NULL, topHWnd, L"WorkerW", NULL);
+            wchar_t className[256] = {};
+            GetClassNameW(topHWnd, className, 256);
+            if (wcscmp(className, L"WorkerW") == 0) {
+                HWND hDefView = FindWindowExW(topHWnd, NULL, L"SHELLDLL_DefView", NULL);
+                if (hDefView == NULL) {
+                    HWND* pWorkerW = reinterpret_cast<HWND*>(lParam);
+                    *pWorkerW = topHWnd;
+                    return FALSE; // Found empty background WorkerW window
+                }
             }
             return TRUE;
         }, reinterpret_cast<LPARAM>(&hWorkerW));
-
-        if (!hWorkerW && retry == 0) {
-            Sleep(10);
-        }
     }
 
-    if (!hWorkerW) {
-        if (hProgman) {
-            Logger::LogWarning("WorkerW window not found via EnumWindows, using Progman handle as fallback.");
-            hWorkerW = hProgman;
-        } else {
-            Logger::LogWarning("WorkerW window not found via EnumWindows, using Desktop window as fallback.");
-            hWorkerW = GetDesktopWindow();
-        }
-    } else {
+    if (hWorkerW) {
         Logger::LogInfo("WorkerW window handle successfully acquired.");
+    } else {
+        Logger::LogWarning("WorkerW window handle not found.");
     }
 
     return hWorkerW;
@@ -132,11 +138,12 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
     Logger::LogInfo("Wallpaper window virtual screen placement: [" + std::to_string(x) + ", " + std::to_string(y) + 
                     " - " + std::to_string(cx) + "x" + std::to_string(cy) + "]");
 
-    bool isRealParent = (hWorkerW && hWorkerW != GetDesktopWindow());
+    HWND hProgman = FindWindowW(L"Progman", NULL);
+    bool isRealParent = (hWorkerW && hWorkerW != GetDesktopWindow() && hWorkerW != hProgman);
     DWORD dwStyle = isRealParent ? (WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN) : WS_POPUP;
     HWND hParent = isRealParent ? hWorkerW : NULL;
 
-    // Create window with WS_EX_TRANSPARENT | WS_EX_NOACTIVATE and matching style
+    // Create window with WS_EX_TRANSPARENT | WS_EX_NOACTIVATE
     HWND hWnd = CreateWindowExW(
         WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
         L"WallpaperEngineClass",
