@@ -6,6 +6,8 @@
 #include "core/Logger.h"
 
 // ponytail: [Basic Win32 Desktop Window Injection] -> [Multi-monitor virtual screen positioning and DPI-aware scaling manager]
+// ponytail comment: Passes mouse input through (WS_EX_TRANSPARENT | WS_EX_NOACTIVATE) and uses WS_CHILD style when parented to WorkerW
+// so desktop icons and right-click context menus work 100% natively over the live video wallpaper.
 
 HWND DesktopHost::GetWorkerWHandle() {
     HWND hProgman = FindWindowW(L"Progman", NULL);
@@ -22,15 +24,21 @@ HWND DesktopHost::GetWorkerWHandle() {
     }
 
     HWND hWorkerW = NULL;
-    EnumWindows([](HWND topHWnd, LPARAM lParam) -> BOOL {
-        HWND hDefView = FindWindowExW(topHWnd, NULL, L"SHELLDLL_DefView", NULL);
-        if (hDefView != NULL) {
-            // Find the WorkerW window that immediately follows the window containing SHELLDLL_DefView
-            HWND* pWorkerW = reinterpret_cast<HWND*>(lParam);
-            *pWorkerW = FindWindowExW(NULL, topHWnd, L"WorkerW", NULL);
+    for (int retry = 0; retry < 2 && !hWorkerW; ++retry) {
+        EnumWindows([](HWND topHWnd, LPARAM lParam) -> BOOL {
+            HWND hDefView = FindWindowExW(topHWnd, NULL, L"SHELLDLL_DefView", NULL);
+            if (hDefView != NULL) {
+                // Find the WorkerW window that immediately follows the window containing SHELLDLL_DefView
+                HWND* pWorkerW = reinterpret_cast<HWND*>(lParam);
+                *pWorkerW = FindWindowExW(NULL, topHWnd, L"WorkerW", NULL);
+            }
+            return TRUE;
+        }, reinterpret_cast<LPARAM>(&hWorkerW));
+
+        if (!hWorkerW && retry == 0) {
+            Sleep(10);
         }
-        return TRUE;
-    }, reinterpret_cast<LPARAM>(&hWorkerW));
+    }
 
     if (!hWorkerW) {
         if (hProgman) {
@@ -49,13 +57,16 @@ HWND DesktopHost::GetWorkerWHandle() {
 
 LRESULT CALLBACK WallpaperWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
+    case WM_NCHITTEST:
+        // Force mouse hit-testing to return HTTRANSPARENT so all mouse events (clicks, right-clicks, drag) pass directly to Desktop Icons
+        return HTTRANSPARENT;
     case WM_DISPLAYCHANGE:
     case WM_DPICHANGED: {
         Logger::LogInfo("Display geometry or DPI change detected (msg=" + std::to_string(message) + ")");
         RECT bounds = MonitorManager::GetVirtualScreenBounds();
         UINT width = bounds.right - bounds.left;
         UINT height = bounds.bottom - bounds.top;
-        SetWindowPos(hWnd, NULL, bounds.left, bounds.top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(hWnd, HWND_BOTTOM, bounds.left, bounds.top, width, height, SWP_NOACTIVATE);
 
         auto* renderer = reinterpret_cast<D3D11Renderer*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
         if (renderer) {
@@ -121,13 +132,18 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
     Logger::LogInfo("Wallpaper window virtual screen placement: [" + std::to_string(x) + ", " + std::to_string(y) + 
                     " - " + std::to_string(cx) + "x" + std::to_string(cy) + "]");
 
+    bool isRealParent = (hWorkerW && hWorkerW != GetDesktopWindow());
+    DWORD dwStyle = isRealParent ? (WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN) : WS_POPUP;
+    HWND hParent = isRealParent ? hWorkerW : NULL;
+
+    // Create window with WS_EX_TRANSPARENT | WS_EX_NOACTIVATE and matching style
     HWND hWnd = CreateWindowExW(
-        0,
+        WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
         L"WallpaperEngineClass",
         L"Live Wallpaper Host",
-        WS_POPUP,
+        dwStyle,
         x, y, cx, cy,
-        NULL,
+        hParent,
         NULL,
         hInst,
         NULL
@@ -139,13 +155,14 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
         return NULL;
     }
 
-    if (hWorkerW && hWorkerW != GetDesktopWindow()) {
+    if (isRealParent) {
         SetParent(hWnd, hWorkerW);
+        SetWindowPos(hWnd, HWND_BOTTOM, x, y, cx, cy, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
     }
 
     ShowWindow(hWnd, SW_SHOWNOACTIVATE);
     UpdateWindow(hWnd);
 
-    Logger::LogInfo("Wallpaper window created successfully.");
+    Logger::LogInfo("Wallpaper window created successfully with mouse click-through and WorkerW desktop injection.");
     return hWnd;
 }
