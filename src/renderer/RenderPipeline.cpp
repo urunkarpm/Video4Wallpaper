@@ -1,4 +1,5 @@
 #include "renderer/RenderPipeline.h"
+#include "ui/PerformanceHud.h"
 #include "core/Logger.h"
 #include <sstream>
 #include <iomanip>
@@ -159,6 +160,10 @@ void RenderPipeline::RenderThreadProc() {
         if (renderedFrame) {
             m_frameCount++;
             fpsFrameCounter++;
+
+            if (m_hud && m_hud->IsVisible() && m_renderer) {
+                m_hud->Render(m_renderer->GetHWnd(), this, m_perfManager, static_cast<int>(m_renderer->GetScalingMode()));
+            }
         }
 
         // FPS calculation

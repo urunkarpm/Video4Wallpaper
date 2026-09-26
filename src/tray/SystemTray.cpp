@@ -1,0 +1,136 @@
+#include "tray/SystemTray.h"
+#include "core/Logger.h"
+
+// ponytail: [Basic Win32 Shell_NotifyIconW System Tray] -> [Modern Windows AppNotification / Toast notification & WPF/WinUI tray controller]
+
+SystemTray* SystemTray::s_instance = nullptr;
+
+SystemTray::SystemTray() {
+    s_instance = this;
+}
+
+SystemTray::~SystemTray() {
+    Shutdown();
+    if (s_instance == this) {
+        s_instance = nullptr;
+    }
+}
+
+bool SystemTray::Initialize(HWND hWnd, SystemTrayCallbacks callbacks) {
+    m_hWnd = hWnd;
+    m_callbacks = callbacks;
+
+    ZeroMemory(&m_nid, sizeof(m_nid));
+    m_nid.cbSize = sizeof(NOTIFYICONDATAW);
+    m_nid.hWnd = hWnd;
+    m_nid.uID = 1;
+    m_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    m_nid.uCallbackMessage = WM_TRAYICON;
+    m_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
+    wcscpy_s(m_nid.szTip, L"WallpaperEngine");
+
+    if (!Shell_NotifyIconW(NIM_ADD, &m_nid)) {
+        Logger::LogError("Failed to add system tray icon.");
+        return false;
+    }
+
+    m_initialized = true;
+    Logger::LogInfo("SystemTray icon initialized successfully.");
+    return true;
+}
+
+void SystemTray::Shutdown() {
+    if (m_initialized) {
+        Shell_NotifyIconW(NIM_DELETE, &m_nid);
+        m_initialized = false;
+        Logger::LogInfo("SystemTray icon removed.");
+    }
+}
+
+void SystemTray::ShowContextMenu(HWND hWnd) {
+    HMENU hMenu = CreatePopupMenu();
+    HMENU hSubMenuScaling = CreatePopupMenu();
+
+    AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 0 ? MF_CHECKED : 0), ID_TRAY_SCALING_FILL, L"Fill");
+    AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 1 ? MF_CHECKED : 0), ID_TRAY_SCALING_FIT, L"Fit");
+    AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 2 ? MF_CHECKED : 0), ID_TRAY_SCALING_STRETCH, L"Stretch");
+    AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 3 ? MF_CHECKED : 0), ID_TRAY_SCALING_CROP, L"Crop");
+    AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 4 ? MF_CHECKED : 0), ID_TRAY_SCALING_ORIGINAL, L"Original");
+
+    AppendMenuW(hMenu, MF_STRING | (m_isPaused ? MF_CHECKED : 0), ID_TRAY_PAUSE_RESUME, m_isPaused ? L"Resume" : L"Pause");
+    AppendMenuW(hMenu, MF_STRING | (m_isHudVisible ? MF_CHECKED : 0), ID_TRAY_TOGGLE_HUD, L"Toggle Performance HUD");
+    AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubMenuScaling), L"Scaling Mode");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit");
+
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(hWnd);
+    TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, pt.x, pt.y, 0, hWnd, NULL);
+    PostMessageW(hWnd, WM_NULL, 0, 0);
+    DestroyMenu(hMenu);
+}
+
+LRESULT SystemTray::HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (!s_instance) return 0;
+
+    if (message == WM_TRAYICON) {
+        if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+            s_instance->ShowContextMenu(hWnd);
+            return 0;
+        } else if (lParam == WM_LBUTTONDBLCLK) {
+            if (s_instance->m_callbacks.onTogglePause) {
+                s_instance->m_callbacks.onTogglePause();
+            }
+            return 0;
+        }
+    } else if (message == WM_COMMAND) {
+        int id = LOWORD(wParam);
+        switch (id) {
+        case ID_TRAY_PAUSE_RESUME:
+            if (s_instance->m_callbacks.onTogglePause) {
+                s_instance->m_callbacks.onTogglePause();
+            }
+            break;
+        case ID_TRAY_TOGGLE_HUD:
+            if (s_instance->m_callbacks.onToggleHud) {
+                s_instance->m_callbacks.onToggleHud();
+            }
+            break;
+        case ID_TRAY_SCALING_FILL:
+            if (s_instance->m_callbacks.onChangeScalingMode) {
+                s_instance->m_callbacks.onChangeScalingMode(0);
+            }
+            break;
+        case ID_TRAY_SCALING_FIT:
+            if (s_instance->m_callbacks.onChangeScalingMode) {
+                s_instance->m_callbacks.onChangeScalingMode(1);
+            }
+            break;
+        case ID_TRAY_SCALING_STRETCH:
+            if (s_instance->m_callbacks.onChangeScalingMode) {
+                s_instance->m_callbacks.onChangeScalingMode(2);
+            }
+            break;
+        case ID_TRAY_SCALING_CROP:
+            if (s_instance->m_callbacks.onChangeScalingMode) {
+                s_instance->m_callbacks.onChangeScalingMode(3);
+            }
+            break;
+        case ID_TRAY_SCALING_ORIGINAL:
+            if (s_instance->m_callbacks.onChangeScalingMode) {
+                s_instance->m_callbacks.onChangeScalingMode(4);
+            }
+            break;
+        case ID_TRAY_EXIT:
+            if (s_instance->m_callbacks.onExit) {
+                s_instance->m_callbacks.onExit();
+            } else {
+                PostQuitMessage(0);
+            }
+            break;
+        }
+        return 0;
+    }
+    return 0;
+}

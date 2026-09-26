@@ -9,6 +9,9 @@
 // ponytail: [High-precision waitable timer pacing] -> [DXGI Present flip-model with IDXGISwapChain3::GetFrameLatencyWaitableObject]
 // ponytail: [Synchronous render thread decoding] -> [Dual-ring asynchronous decoder/presenter pipeline with frame interpolation]
 
+class PerformanceHud;
+class PerformanceManager;
+
 class RenderPipeline {
 public:
     RenderPipeline(D3D11Renderer* renderer, VideoDecoder* decoder);
@@ -26,11 +29,16 @@ public:
     double GetCurrentFPS() const { return m_currentFPS.load(); }
     void SetTargetFPS(double fps) { m_targetFPS = fps; }
 
+    void SetPerformanceHud(PerformanceHud* hud) { m_hud = hud; }
+    void SetPerformanceManager(const PerformanceManager* perfManager) { m_perfManager = perfManager; }
+
 private:
     void RenderThreadProc();
 
     D3D11Renderer* m_renderer = nullptr;
     VideoDecoder* m_decoder = nullptr;
+    PerformanceHud* m_hud = nullptr;
+    const PerformanceManager* m_perfManager = nullptr;
 
     std::thread m_renderThread;
     std::atomic<bool> m_running{ false };

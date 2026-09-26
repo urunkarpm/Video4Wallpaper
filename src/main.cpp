@@ -1,12 +1,15 @@
 #include <windows.h>
 #include <string>
 #include <filesystem>
+#include "core/Config.h"
 #include "core/Logger.h"
 #include "monitor/MonitorManager.h"
 #include "performance/PerformanceManager.h"
 #include "renderer/DesktopHost.h"
 #include "renderer/D3D11Renderer.h"
 #include "renderer/RenderPipeline.h"
+#include "tray/SystemTray.h"
+#include "ui/PerformanceHud.h"
 #include "video/VideoDecoder.h"
 
 namespace {
@@ -21,6 +24,28 @@ std::string WStringToString(const std::wstring& wstr) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     Logger::LogInfo("WallpaperEngine initializing...");
+
+    AppSettings settings;
+    std::string configPath = "config.json";
+    if (Config::Load(configPath, settings)) {
+        Logger::LogInfo("Loaded existing configuration from " + configPath);
+    } else {
+        Logger::LogInfo("No existing config file found or load failed. Initializing defaults.");
+    }
+
+    if (__argc > 1 && __wargv[1]) {
+        settings.wallpaperPath = __wargv[1];
+        Logger::LogInfo("Wallpaper path specified via command-line argument.");
+    }
+
+    if (settings.wallpaperPath.empty()) {
+        std::wstring samplePath = L"C:\\Users\\uprasenjeet\\Videos\\Screen Recordings\\Screen Recording 2026-09-06 123705.mp4";
+        if (std::filesystem::exists(samplePath)) {
+            settings.wallpaperPath = samplePath;
+        }
+    }
+
+    Config::Save(configPath, settings);
 
     auto monitors = MonitorManager::EnumerateMonitors();
     Logger::LogInfo("Monitor Enumeration Complete. Total active monitors: " + std::to_string(monitors.size()));
@@ -54,13 +79,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
 
-    Logger::LogInfo("Testing aspect scaling modes and GPU viewport quad calculations...");
-    renderer.SetScalingMode(ScalingMode::Fill);
-    renderer.SetScalingMode(ScalingMode::Fit);
-    renderer.SetScalingMode(ScalingMode::Stretch);
-    renderer.SetScalingMode(ScalingMode::Crop);
-    renderer.SetScalingMode(ScalingMode::Original);
-    renderer.SetScalingMode(ScalingMode::Fill);
+    renderer.SetScalingMode(static_cast<ScalingMode>(settings.scalingMode));
 
     VideoDecoder decoder;
     if (!decoder.Initialize(renderer.GetDevice())) {
@@ -68,19 +87,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    std::wstring videoPath;
-    if (__argc > 1 && __wargv[1]) {
-        videoPath = __wargv[1];
-    } else {
-        std::wstring samplePath = L"C:\\Users\\uprasenjeet\\Videos\\Screen Recordings\\Screen Recording 2026-09-06 123705.mp4";
-        if (std::filesystem::exists(samplePath)) {
-            videoPath = samplePath;
-        }
-    }
-
     bool hasVideo = false;
-    if (!videoPath.empty() && std::filesystem::exists(videoPath)) {
-        if (decoder.OpenFile(videoPath)) {
+    if (!settings.wallpaperPath.empty() && std::filesystem::exists(settings.wallpaperPath)) {
+        if (decoder.OpenFile(settings.wallpaperPath)) {
             hasVideo = true;
             Logger::LogInfo("Video playback engine initialized.");
         } else {
@@ -91,12 +100,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     RenderPipeline pipeline(&renderer, &decoder);
-    if (!pipeline.Start()) {
-        Logger::LogError("Failed to start RenderPipeline.");
-        return 1;
-    }
+    pipeline.SetTargetFPS(settings.targetFPS);
 
     PerformanceManager perfManager;
+    perfManager.SetPauseOnFullscreen(settings.pauseOnFullscreen);
+    perfManager.SetPauseOnBattery(settings.pauseOnBattery);
+
     if (!perfManager.Initialize(hWnd, [&pipeline](bool pause, const std::string& reason) {
         if (pause) {
             Logger::LogInfo("PerformanceManager Callback: Auto-pausing RenderPipeline. Reason: " + reason);
@@ -109,7 +118,61 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Logger::LogWarning("Failed to initialize PerformanceManager.");
     }
 
-    Logger::LogInfo("RenderPipeline & PerformanceManager active. Running message loop for 350+ frames...");
+    PerformanceHud hud;
+    hud.SetVisible(settings.showPerformanceHud);
+
+    pipeline.SetPerformanceHud(&hud);
+    pipeline.SetPerformanceManager(&perfManager);
+
+    SystemTray tray;
+    SystemTrayCallbacks callbacks;
+    callbacks.onTogglePause = [&pipeline, &tray]() {
+        if (pipeline.IsPaused()) {
+            Logger::LogInfo("SystemTray Action: Resuming pipeline.");
+            pipeline.Resume();
+            tray.SetIsPaused(false);
+        } else {
+            Logger::LogInfo("SystemTray Action: Pausing pipeline.");
+            pipeline.Pause();
+            tray.SetIsPaused(true);
+        }
+    };
+
+    callbacks.onToggleHud = [&hud, &settings, &tray, configPath]() {
+        bool newVisible = !hud.IsVisible();
+        hud.SetVisible(newVisible);
+        settings.showPerformanceHud = newVisible;
+        tray.SetIsHudVisible(newVisible);
+        Config::Save(configPath, settings);
+        Logger::LogInfo("SystemTray Action: Toggled Performance HUD to " + std::string(newVisible ? "ON" : "OFF"));
+    };
+
+    callbacks.onChangeScalingMode = [&renderer, &settings, &tray, configPath](int mode) {
+        renderer.SetScalingMode(static_cast<ScalingMode>(mode));
+        settings.scalingMode = mode;
+        tray.SetScalingMode(mode);
+        Config::Save(configPath, settings);
+        Logger::LogInfo("SystemTray Action: Changed scaling mode to " + std::to_string(mode));
+    };
+
+    callbacks.onExit = [&pipeline]() {
+        Logger::LogInfo("SystemTray Action: Exit requested.");
+        PostQuitMessage(0);
+    };
+
+    if (!tray.Initialize(hWnd, callbacks)) {
+        Logger::LogWarning("Failed to initialize SystemTray.");
+    }
+    tray.SetIsPaused(pipeline.IsPaused());
+    tray.SetIsHudVisible(hud.IsVisible());
+    tray.SetScalingMode(settings.scalingMode);
+
+    if (!pipeline.Start()) {
+        Logger::LogError("Failed to start RenderPipeline.");
+        return 1;
+    }
+
+    Logger::LogInfo("RenderPipeline, SystemTray, and PerformanceHud active. Running message loop for 350+ frames...");
 
     MSG msg = {};
     bool pauseTested = false;
@@ -126,16 +189,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         uint64_t frameCount = pipeline.GetFrameCount();
 
-        // Automated pause/resume validation around frame 100
+        // Automated validation around frame 100
         if (!pauseTested && frameCount >= 100) {
             pauseTested = true;
-            Logger::LogInfo("Testing RenderPipeline Pause mechanism at frame count: " + std::to_string(frameCount));
+            Logger::LogInfo("Testing RenderPipeline Pause & HUD toggle at frame count: " + std::to_string(frameCount));
             pipeline.Pause();
-            
+            tray.SetIsPaused(true);
+
+            hud.SetVisible(true);
+            settings.showPerformanceHud = true;
+            tray.SetIsHudVisible(true);
+            Config::Save(configPath, settings);
+
             Sleep(300);
 
             Logger::LogInfo("Testing RenderPipeline Resume mechanism.");
             pipeline.Resume();
+            tray.SetIsPaused(false);
         }
 
         if (frameCount >= 350) {
@@ -154,6 +224,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                     ", Total Loops = " + std::to_string(totalLoops) + 
                     ", Final FPS = " + std::to_string(finalFPS));
 
+    tray.Shutdown();
     perfManager.Shutdown();
     pipeline.Stop();
     decoder.Cleanup();

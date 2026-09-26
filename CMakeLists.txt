@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(WallpaperEngine WIN32
     src/main.cpp
+    src/core/Config.cpp
+    src/core/Config.h
     src/core/Logger.cpp
     src/core/Logger.h
     src/monitor/MonitorManager.cpp
@@ -18,6 +20,10 @@ add_executable(WallpaperEngine WIN32
     src/renderer/D3D11Renderer.h
     src/renderer/RenderPipeline.cpp
     src/renderer/RenderPipeline.h
+    src/tray/SystemTray.cpp
+    src/tray/SystemTray.h
+    src/ui/PerformanceHud.cpp
+    src/ui/PerformanceHud.h
     src/video/VideoDecoder.cpp
     src/video/VideoDecoder.h
 )
@@ -39,4 +45,5 @@ target_link_libraries(WallpaperEngine PRIVATE
     Gdi32.lib
     Wtsapi32.lib
     PowrProf.lib
+    Psapi.lib
 )

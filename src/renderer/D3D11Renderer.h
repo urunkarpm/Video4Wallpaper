@@ -35,6 +35,7 @@ public:
 
     ID3D11Device* GetDevice() const { return m_device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_context.Get(); }
+    HWND GetHWnd() const { return m_hWnd; }
 
 private:
     bool CreateDeviceAndSwapChain(HWND hWnd);
