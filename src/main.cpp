@@ -4,6 +4,7 @@
 #include "core/Logger.h"
 #include "renderer/DesktopHost.h"
 #include "renderer/D3D11Renderer.h"
+#include "renderer/RenderPipeline.h"
 #include "video/VideoDecoder.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -44,7 +45,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     bool hasVideo = false;
-    if (!videoPath.empty()) {
+    if (!videoPath.empty() && std::filesystem::exists(videoPath)) {
         if (decoder.OpenFile(videoPath)) {
             hasVideo = true;
             Logger::LogInfo("Video playback engine initialized.");
@@ -52,54 +53,63 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             Logger::LogWarning("Failed to open video file. Falling back to test renderer.");
         }
     } else {
-        Logger::LogInfo("No video file path specified. Running in fallback test pattern mode.");
+        Logger::LogInfo("No valid video file path specified or found. Running in fallback test pattern mode.");
     }
 
-    Logger::LogInfo("Running video render loop for 150 frames...");
+    RenderPipeline pipeline(&renderer, &decoder);
+    if (!pipeline.Start()) {
+        Logger::LogError("Failed to start RenderPipeline.");
+        return 1;
+    }
+
+    Logger::LogInfo("RenderPipeline started. Running high-precision waitable timer loop for 350+ frames...");
 
     MSG msg = {};
-    int totalFramesRendered = 0;
-    int loopCount = 0;
+    bool pauseTested = false;
 
-    for (int frame = 0; frame < 150; ++frame) {
+    while (pipeline.IsRunning()) {
         while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) {
+                pipeline.Stop();
                 break;
             }
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
 
-        if (hasVideo) {
-            DecodedFrame videoFrame = decoder.GetNextFrame();
-            if (videoFrame.isEndOfStream || frame == 75) {
-                loopCount++;
-                Logger::LogInfo("Loop boundary reached (Loop #" + std::to_string(loopCount) + "). Rewinding seamlessly...");
-                if (decoder.Rewind()) {
-                    Logger::LogInfo("VideoDecoder::Rewind succeeded.");
-                } else {
-                    Logger::LogError("VideoDecoder::Rewind failed.");
-                }
-                videoFrame = decoder.GetNextFrame();
-            }
+        uint64_t frameCount = pipeline.GetFrameCount();
 
-            if (videoFrame.isHardwareAccelerated) {
-                if (frame == 1 || frame == 76) {
-                    Logger::LogInfo("Rendering hardware-accelerated DecodedFrame (PTS: " + std::to_string(videoFrame.timestamp) + ").");
-                }
-            }
+        // Automated pause/resume validation around frame 100
+        if (!pauseTested && frameCount >= 100) {
+            pauseTested = true;
+            Logger::LogInfo("Testing RenderPipeline Pause mechanism at frame count: " + std::to_string(frameCount));
+            pipeline.Pause();
+            
+            // Sleep for 300ms in WinMain to verify zero-waste idle behavior on render thread
+            Sleep(300);
 
-            renderer.RenderVideoFrame(videoFrame);
-        } else {
-            renderer.RenderTestFrame();
+            Logger::LogInfo("Testing RenderPipeline Resume mechanism.");
+            pipeline.Resume();
         }
 
-        totalFramesRendered++;
-        Sleep(16); // ~60 FPS simulation
+        // Run until at least 350 frames rendered
+        if (frameCount >= 350) {
+            Logger::LogInfo("Target frame count reached (350+ frames). Initiating clean shutdown.");
+            break;
+        }
+
+        Sleep(5); // Main thread yield to stay responsive to UI/win32 messages
     }
 
-    Logger::LogInfo("Video render loop complete. Total frames rendered: " + std::to_string(totalFramesRendered));
-    
+    uint64_t totalFrames = pipeline.GetFrameCount();
+    uint64_t totalLoops = pipeline.GetLoopCount();
+    double finalFPS = pipeline.GetCurrentFPS();
+
+    Logger::LogInfo("RenderPipeline complete summary: Total Frames = " + std::to_string(totalFrames) + 
+                    ", Total Loops = " + std::to_string(totalLoops) + 
+                    ", Final FPS = " + std::to_string(finalFPS));
+
+    pipeline.Stop();
     decoder.Cleanup();
     renderer.Cleanup();
 

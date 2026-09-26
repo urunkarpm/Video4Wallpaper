@@ -12,6 +12,8 @@ add_executable(WallpaperEngine WIN32
     src/renderer/DesktopHost.h
     src/renderer/D3D11Renderer.cpp
     src/renderer/D3D11Renderer.h
+    src/renderer/RenderPipeline.cpp
+    src/renderer/RenderPipeline.h
     src/video/VideoDecoder.cpp
     src/video/VideoDecoder.h
 )
