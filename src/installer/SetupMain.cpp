@@ -59,6 +59,7 @@ bool CreateShortcutAtLocation(const fs::path& targetExePath, const fs::path& des
         pShellLink->SetPath(targetExePath.c_str());
         pShellLink->SetWorkingDirectory(targetExePath.parent_path().c_str());
         pShellLink->SetDescription(L"Windows Live Wallpaper Engine");
+        pShellLink->SetIconLocation(targetExePath.c_str(), 0);
 
         IPersistFile* pPersistFile = NULL;
         hr = pShellLink->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&pPersistFile));
@@ -74,6 +75,11 @@ bool CreateShortcutAtLocation(const fs::path& targetExePath, const fs::path& des
     if (SUCCEEDED(hrInit)) {
         CoUninitialize();
     }
+
+    if (success) {
+        // Immediately notify Windows Shell of the created shortcut file so Explorer refreshes Desktop UI
+        SHChangeNotify(SHCNE_CREATE, SHCNF_PATHW, destLnkPath.c_str(), NULL);
+    }
     return success;
 }
 
@@ -87,9 +93,16 @@ void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& s
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOP, NULL, 0, pathBuf))) {
         desktopDirs.push_back(pathBuf);
     }
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, pathBuf))) {
+        desktopDirs.push_back(pathBuf);
+    }
 
     PWSTR knownPath = NULL;
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, NULL, &knownPath)) && knownPath) {
+        desktopDirs.push_back(knownPath);
+        CoTaskMemFree(knownPath);
+    }
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_PublicDesktop, 0, NULL, &knownPath)) && knownPath) {
         desktopDirs.push_back(knownPath);
         CoTaskMemFree(knownPath);
     }
@@ -107,7 +120,8 @@ void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& s
                 // Fallback: PowerShell WScript.Shell shortcut creation
                 std::wstring psCmd = L"powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" + 
                                      lnkPath.wstring() + L"'); $s.TargetPath='" + targetExePath.wstring() + 
-                                     L"'; $s.WorkingDirectory='" + targetExePath.parent_path().wstring() + L"'; $s.Save()\"";
+                                     L"'; $s.WorkingDirectory='" + targetExePath.parent_path().wstring() + 
+                                     L"'; $s.IconLocation='" + targetExePath.wstring() + L",0'; $s.Save()\"";
                 STARTUPINFOW si = { sizeof(STARTUPINFOW) };
                 si.dwFlags = STARTF_USESHOWWINDOW;
                 si.wShowWindow = SW_HIDE;
@@ -116,10 +130,14 @@ void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& s
                     WaitForSingleObject(pi.hProcess, 3000);
                     CloseHandle(pi.hProcess);
                     CloseHandle(pi.hThread);
+                    SHChangeNotify(SHCNE_CREATE, SHCNF_PATHW, lnkPath.c_str(), NULL);
                 }
             }
         }
     }
+
+    // Force Windows Shell to redraw desktop icons
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -163,7 +181,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    // Create Desktop Shortcuts across Desktop & OneDrive Desktop paths
+    // Create Desktop Shortcuts across Desktop, OneDrive Desktop & Public Desktop paths with instant Shell refresh
     CreateDesktopShortcuts(destBinary, L"WallpaperEngine");
 
     // Set Windows Startup Registry Key (HKCU\Software\Microsoft\Windows\CurrentVersion\Run)

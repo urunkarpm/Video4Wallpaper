@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(WallpaperEngine WIN32
     src/main.cpp
+    src/res/app.rc
     src/core/Config.cpp
     src/core/Config.h
     src/core/Logger.cpp
@@ -103,6 +104,7 @@ file(GENERATE
 
 add_executable(WallpaperEngine-Setup WIN32
     src/installer/SetupMain.cpp
+    src/res/app.rc
     ${GENERATED_RC}
 )
 add_dependencies(WallpaperEngine-Setup WallpaperEngine)
