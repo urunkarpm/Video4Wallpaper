@@ -1,4 +1,5 @@
 /build/
 /.vs/
 *.user
-wallpaper_engine.log
+config.json
+/.superpowers/
