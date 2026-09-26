@@ -3,11 +3,124 @@
 #include <shlwapi.h>
 #include <string>
 #include <filesystem>
-#include <fstream>
+#include <vector>
+#include "resource.h"
 
 namespace fs = std::filesystem;
 
-// ponytail: [1-File C++ Native Win32 Setup Installer] -> [NSIS / CPack MSI installer package]
+// ponytail: [Single Standalone Embedded Win32 Installer] -> [NSIS / WiX MSI Package]
+// ponytail comment: Embeds WallpaperEngine.exe as an RCDATA Win32 resource directly inside WallpaperEngine-Setup.exe.
+// This produces a single, self-contained 1-file setup executable with 0 external dependencies for GitHub Release hosting.
+
+void KillRunningWallpaperEngine() {
+    std::wstring cmd = L"taskkill /F /IM WallpaperEngine.exe /T";
+    STARTUPINFOW si = { sizeof(STARTUPINFOW) };
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION pi = {};
+    if (CreateProcessW(NULL, &cmd[0], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, 3000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    Sleep(500); // Allow OS file handle release
+}
+
+bool ExtractEmbeddedBinary(const fs::path& destBinaryPath) {
+    HMODULE hModule = GetModuleHandleW(NULL);
+    HRSRC hRes = FindResourceW(hModule, MAKEINTRESOURCEW(IDR_WALLPAPERENGINE_EXE), MAKEINTRESOURCEW(10)); // 10 is RT_RCDATA
+    if (!hRes) return false;
+
+    HGLOBAL hMem = LoadResource(hModule, hRes);
+    if (!hMem) return false;
+
+    DWORD size = SizeofResource(hModule, hRes);
+    void* pData = LockResource(hMem);
+    if (!pData || size == 0) return false;
+
+    HANDLE hFile = CreateFileW(destBinaryPath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD written = 0;
+    BOOL bResult = WriteFile(hFile, pData, size, &written, NULL);
+    CloseHandle(hFile);
+
+    return bResult && (written == size);
+}
+
+bool CreateShortcutAtLocation(const fs::path& targetExePath, const fs::path& destLnkPath) {
+    HRESULT hrInit = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    IShellLinkW* pShellLink = NULL;
+    HRESULT hr = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLinkW, reinterpret_cast<void**>(&pShellLink));
+    bool success = false;
+    if (SUCCEEDED(hr) && pShellLink) {
+        pShellLink->SetPath(targetExePath.c_str());
+        pShellLink->SetWorkingDirectory(targetExePath.parent_path().c_str());
+        pShellLink->SetDescription(L"Windows Live Wallpaper Engine");
+
+        IPersistFile* pPersistFile = NULL;
+        hr = pShellLink->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&pPersistFile));
+        if (SUCCEEDED(hr) && pPersistFile) {
+            hr = pPersistFile->Save(destLnkPath.c_str(), TRUE);
+            if (SUCCEEDED(hr)) {
+                success = true;
+            }
+            pPersistFile->Release();
+        }
+        pShellLink->Release();
+    }
+    if (SUCCEEDED(hrInit)) {
+        CoUninitialize();
+    }
+    return success;
+}
+
+void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& shortcutName) {
+    std::vector<fs::path> desktopDirs;
+
+    wchar_t pathBuf[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, pathBuf))) {
+        desktopDirs.push_back(pathBuf);
+    }
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOP, NULL, 0, pathBuf))) {
+        desktopDirs.push_back(pathBuf);
+    }
+
+    PWSTR knownPath = NULL;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, NULL, &knownPath)) && knownPath) {
+        desktopDirs.push_back(knownPath);
+        CoTaskMemFree(knownPath);
+    }
+
+    wchar_t userProfile[MAX_PATH] = {};
+    if (GetEnvironmentVariableW(L"USERPROFILE", userProfile, MAX_PATH) > 0) {
+        desktopDirs.push_back(fs::path(userProfile) / L"Desktop");
+        desktopDirs.push_back(fs::path(userProfile) / L"OneDrive" / L"Desktop");
+    }
+
+    for (const auto& dir : desktopDirs) {
+        if (fs::exists(dir)) {
+            fs::path lnkPath = dir / (shortcutName + L".lnk");
+            if (!CreateShortcutAtLocation(targetExePath, lnkPath)) {
+                // Fallback: PowerShell WScript.Shell shortcut creation
+                std::wstring psCmd = L"powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" + 
+                                     lnkPath.wstring() + L"'); $s.TargetPath='" + targetExePath.wstring() + 
+                                     L"'; $s.WorkingDirectory='" + targetExePath.parent_path().wstring() + L"'; $s.Save()\"";
+                STARTUPINFOW si = { sizeof(STARTUPINFOW) };
+                si.dwFlags = STARTF_USESHOWWINDOW;
+                si.wShowWindow = SW_HIDE;
+                PROCESS_INFORMATION pi = {};
+                if (CreateProcessW(NULL, &psCmd[0], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                    WaitForSingleObject(pi.hProcess, 3000);
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
+                }
+            }
+        }
+    }
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     wchar_t localAppData[MAX_PATH] = {};
@@ -20,25 +133,38 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     std::error_code ec;
     fs::create_directories(installDir, ec);
 
-    wchar_t currentExePath[MAX_PATH] = {};
-    GetModuleFileNameW(NULL, currentExePath, MAX_PATH);
-    fs::path currentDir = fs::path(currentExePath).parent_path();
-
-    fs::path srcBinary = currentDir / L"WallpaperEngine.exe";
     fs::path destBinary = installDir / L"WallpaperEngine.exe";
 
-    if (fs::exists(srcBinary)) {
-        fs::copy_file(srcBinary, destBinary, fs::copy_options::overwrite_existing, ec);
-    } else {
-        // Fallback: If run in Release dir or standalone, look for WallpaperEngine.exe
-        fs::path fallbackSrc = currentDir / L"Release" / L"WallpaperEngine.exe";
-        if (fs::exists(fallbackSrc)) {
-            fs::copy_file(fallbackSrc, destBinary, fs::copy_options::overwrite_existing, ec);
+    // Terminate any running instance before writing updated binary
+    KillRunningWallpaperEngine();
+
+    // 1. Try extracting binary from embedded Win32 resource RCDATA
+    bool installed = ExtractEmbeddedBinary(destBinary);
+
+    // 2. Fallback for loose build tree binaries if resource not present
+    if (!installed) {
+        wchar_t currentExePath[MAX_PATH] = {};
+        GetModuleFileNameW(NULL, currentExePath, MAX_PATH);
+        fs::path currentDir = fs::path(currentExePath).parent_path();
+        fs::path srcBinary = currentDir / L"WallpaperEngine.exe";
+
+        if (fs::exists(srcBinary)) {
+            installed = fs::copy_file(srcBinary, destBinary, fs::copy_options::overwrite_existing, ec);
         } else {
-            MessageBoxW(NULL, (L"Could not locate WallpaperEngine.exe in:\n" + srcBinary.wstring()).c_str(), L"WallpaperEngine Setup Error", MB_OK | MB_ICONERROR);
-            return 1;
+            fs::path fallbackSrc = currentDir / L"Release" / L"WallpaperEngine.exe";
+            if (fs::exists(fallbackSrc)) {
+                installed = fs::copy_file(fallbackSrc, destBinary, fs::copy_options::overwrite_existing, ec);
+            }
         }
     }
+
+    if (!installed || !fs::exists(destBinary)) {
+        MessageBoxW(NULL, L"Could not extract or locate WallpaperEngine.exe binary.", L"WallpaperEngine Setup Error", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+
+    // Create Desktop Shortcuts across Desktop & OneDrive Desktop paths
+    CreateDesktopShortcuts(destBinary, L"WallpaperEngine");
 
     // Set Windows Startup Registry Key (HKCU\Software\Microsoft\Windows\CurrentVersion\Run)
     HKEY hKey = NULL;
@@ -60,7 +186,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     MessageBoxW(
         NULL,
-        (L"WallpaperEngine installed successfully to:\n" + destBinary.wstring() + L"\n\nIt is now running in the Windows System Tray and set to launch automatically on Startup!").c_str(),
+        (L"WallpaperEngine installed successfully!\n\n- Installed to: " + destBinary.wstring() + L"\n- Desktop Shortcut: WallpaperEngine.lnk created\n- Windows Autostart: Enabled\n\nIt is now running in your Windows System Tray!").c_str(),
         L"WallpaperEngine Setup Complete",
         MB_OK | MB_ICONINFORMATION
     );

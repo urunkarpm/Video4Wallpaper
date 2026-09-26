@@ -96,12 +96,14 @@ bool SystemTray::Initialize(HWND hWnd, SystemTrayCallbacks callbacks) {
         m_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
     }
 
+    m_nid.uVersion = NOTIFYICON_VERSION_4;
     wcscpy_s(m_nid.szTip, L"Windows Live Wallpaper Engine");
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid)) {
         Logger::LogError("Failed to add system tray icon.");
         return false;
     }
+    Shell_NotifyIconW(NIM_SETVERSION, &m_nid);
 
     m_initialized = true;
     Logger::LogInfo("SystemTray icon initialized with custom app logo successfully.");

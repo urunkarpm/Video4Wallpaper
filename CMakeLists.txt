@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(WallpaperEngine LANGUAGES CXX)
+project(WallpaperEngine LANGUAGES CXX RC)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +48,7 @@ target_link_libraries(WallpaperEngine PRIVATE
     Psapi.lib
 )
 
+# Automated Benchmark Test Suite
 add_executable(BenchmarkTest
     tests/BenchmarkTest.cpp
     src/core/Config.cpp
@@ -92,28 +93,23 @@ target_link_libraries(BenchmarkTest PRIVATE
     Psapi.lib
 )
 
-# Installer executable target
+# Standalone 1-File Self-Contained Setup Installer Target
+# Embeds $<TARGET_FILE:WallpaperEngine> into WallpaperEngine-Setup.exe as Win32 RCDATA resource IDR_WALLPAPERENGINE_EXE
+set(GENERATED_RC "${CMAKE_CURRENT_BINARY_DIR}/installer_resource_$<CONFIG>.rc")
+file(GENERATE 
+    OUTPUT "${GENERATED_RC}"
+    CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/installer/resource.h\"\nIDR_WALLPAPERENGINE_EXE RCDATA \"$<TARGET_FILE:WallpaperEngine>\"\n"
+)
+
 add_executable(WallpaperEngine-Setup WIN32
     src/installer/SetupMain.cpp
+    ${GENERATED_RC}
 )
+add_dependencies(WallpaperEngine-Setup WallpaperEngine)
+
+target_include_directories(WallpaperEngine-Setup PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/installer)
 target_link_libraries(WallpaperEngine-Setup PRIVATE
     Shell32.lib
     Shlwapi.lib
     User32.lib
 )
-
-# Install targets
-install(TARGETS WallpaperEngine WallpaperEngine-Setup DESTINATION bin)
-
-# CPack Installer Configuration
-set(CPACK_PACKAGE_NAME "WallpaperEngine")
-set(CPACK_PACKAGE_VENDOR "Antigravity")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High-Performance Native Windows Live Wallpaper Engine")
-set(CPACK_PACKAGE_VERSION "1.0.0")
-set(CPACK_GENERATOR "NSIS;ZIP")
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "WallpaperEngine")
-set(CPACK_NSIS_DISPLAY_NAME "Windows Live Wallpaper Engine")
-set(CPACK_NSIS_PACKAGE_NAME "WallpaperEngine Setup")
-
-include(CPack)
-
