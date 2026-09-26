@@ -1,6 +1,7 @@
 #include "renderer/DesktopHost.h"
 #include "renderer/D3D11Renderer.h"
 #include "monitor/MonitorManager.h"
+#include "performance/PerformanceManager.h"
 #include "core/Logger.h"
 
 // ponytail: [Basic Win32 Desktop Window Injection] -> [Multi-monitor virtual screen positioning and DPI-aware scaling manager]
@@ -72,6 +73,10 @@ LRESULT CALLBACK WallpaperWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         }
         return 0;
     }
+    case WM_POWERBROADCAST:
+    case WM_WTSSESSION_CHANGE:
+        PerformanceManager::HandleWindowMessage(hWnd, message, wParam, lParam);
+        return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;

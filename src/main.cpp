@@ -3,6 +3,7 @@
 #include <filesystem>
 #include "core/Logger.h"
 #include "monitor/MonitorManager.h"
+#include "performance/PerformanceManager.h"
 #include "renderer/DesktopHost.h"
 #include "renderer/D3D11Renderer.h"
 #include "renderer/RenderPipeline.h"
@@ -95,7 +96,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    Logger::LogInfo("RenderPipeline started. Running high-precision waitable timer loop for 350+ frames...");
+    PerformanceManager perfManager;
+    if (!perfManager.Initialize(hWnd, [&pipeline](bool pause, const std::string& reason) {
+        if (pause) {
+            Logger::LogInfo("PerformanceManager Callback: Auto-pausing RenderPipeline. Reason: " + reason);
+            pipeline.Pause();
+        } else {
+            Logger::LogInfo("PerformanceManager Callback: Auto-resuming RenderPipeline.");
+            pipeline.Resume();
+        }
+    })) {
+        Logger::LogWarning("Failed to initialize PerformanceManager.");
+    }
+
+    Logger::LogInfo("RenderPipeline & PerformanceManager active. Running message loop for 350+ frames...");
 
     MSG msg = {};
     bool pauseTested = false;
@@ -140,6 +154,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                     ", Total Loops = " + std::to_string(totalLoops) + 
                     ", Final FPS = " + std::to_string(finalFPS));
 
+    perfManager.Shutdown();
     pipeline.Stop();
     decoder.Cleanup();
     renderer.Cleanup();

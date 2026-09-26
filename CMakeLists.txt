@@ -10,6 +10,8 @@ add_executable(WallpaperEngine WIN32
     src/core/Logger.h
     src/monitor/MonitorManager.cpp
     src/monitor/MonitorManager.h
+    src/performance/PerformanceManager.cpp
+    src/performance/PerformanceManager.h
     src/renderer/DesktopHost.cpp
     src/renderer/DesktopHost.h
     src/renderer/D3D11Renderer.cpp
@@ -35,4 +37,6 @@ target_link_libraries(WallpaperEngine PRIVATE
     Shcore.lib
     User32.lib
     Gdi32.lib
+    Wtsapi32.lib
+    PowrProf.lib
 )
