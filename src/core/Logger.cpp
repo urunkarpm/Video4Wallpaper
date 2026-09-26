@@ -2,12 +2,29 @@
 #include "core/Logger.h"
 #include <windows.h>
 #include <iostream>
+#include <fstream>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <cstdio>
 
+namespace {
+bool g_consoleAttached = false;
+void EnsureConsole() {
+    if (!g_consoleAttached) {
+        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+            FILE* fp;
+            freopen_s(&fp, "CONOUT$", "w", stdout);
+            freopen_s(&fp, "CONOUT$", "w", stderr);
+        }
+        g_consoleAttached = true;
+    }
+}
+}
+
 void Logger::Log(LogLevel level, const std::string& message) {
+    EnsureConsole();
+
     auto now = std::chrono::system_clock::now();
     auto time_t_now = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
@@ -33,4 +50,10 @@ void Logger::Log(LogLevel level, const std::string& message) {
 
     std::printf("%s", formatted.c_str());
     std::fflush(stdout);
+
+    std::ofstream logFile("wallpaper_engine.log", std::ios::app);
+    if (logFile.is_open()) {
+        logFile << formatted;
+        logFile.flush();
+    }
 }

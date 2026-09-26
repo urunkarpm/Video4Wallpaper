@@ -54,23 +54,26 @@ LRESULT CALLBACK WallpaperWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 }
 
 HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
+    Logger::LogInfo("DesktopHost::CreateWallpaperWindow starting...");
     HINSTANCE hInst = hInstance ? hInstance : GetModuleHandleW(NULL);
 
     WNDCLASSEXW wc = {};
-    wc.cbSize = sizeof(WNDCLASSEXW);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WallpaperWndProc;
-    wc.hInstance = hInst;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.lpszClassName = L"WallpaperEngineClass";
-
     if (!GetClassInfoExW(hInst, L"WallpaperEngineClass", &wc)) {
+        wc.cbSize = sizeof(WNDCLASSEXW);
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = WallpaperWndProc;
+        wc.hInstance = hInst;
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.lpszClassName = L"WallpaperEngineClass";
+
         if (!RegisterClassExW(&wc)) {
             DWORD err = GetLastError();
             Logger::LogError("Failed to register WallpaperEngineClass window class. Error: " + std::to_string(err));
             return NULL;
         }
     }
+
+    Logger::LogInfo("Window class registered. Creating window...");
 
     int x = GetSystemMetrics(SM_XVIRTUALSCREEN);
     int y = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -88,15 +91,13 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
         cy = 1080;
     }
 
-    HWND parentForCreate = (hWorkerW && hWorkerW != GetDesktopWindow()) ? hWorkerW : NULL;
-
     HWND hWnd = CreateWindowExW(
-        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+        0,
         L"WallpaperEngineClass",
         L"Live Wallpaper Host",
-        WS_POPUP | WS_VISIBLE,
-        x, y, cx, cy,
-        parentForCreate,
+        WS_POPUP,
+        0, 0, cx, cy,
+        NULL,
         NULL,
         hInst,
         NULL
@@ -112,9 +113,9 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
         SetParent(hWnd, hWorkerW);
     }
 
-    ShowWindow(hWnd, SW_SHOW);
+    ShowWindow(hWnd, SW_SHOWNOACTIVATE);
     UpdateWindow(hWnd);
 
-    Logger::LogInfo("Wallpaper window created and reparented to WorkerW.");
+    Logger::LogInfo("Wallpaper window created successfully.");
     return hWnd;
 }

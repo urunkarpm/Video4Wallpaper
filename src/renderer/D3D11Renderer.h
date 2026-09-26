@@ -4,6 +4,7 @@
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>
 #include <wrl/client.h>
+#include "video/VideoDecoder.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -17,6 +18,7 @@ public:
     bool Initialize(HWND hWnd);
     void Cleanup();
     bool RenderTestFrame();
+    bool RenderVideoFrame(const DecodedFrame& frame);
 
     ID3D11Device* GetDevice() const { return m_device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_context.Get(); }
@@ -25,6 +27,7 @@ private:
     bool CreateDeviceAndSwapChain(HWND hWnd);
     bool CreateRenderTargetView();
     bool InitShadersAndBuffers();
+    bool CreateDefaultTexture();
     void HandleDeviceLost();
 
     HWND m_hWnd = nullptr;
@@ -41,4 +44,9 @@ private:
     ComPtr<ID3D11PixelShader> m_pixelShader;
     ComPtr<ID3D11InputLayout> m_inputLayout;
     ComPtr<ID3D11Buffer> m_vertexBuffer;
+
+    ComPtr<ID3D11SamplerState> m_samplerState;
+    ComPtr<ID3D11ShaderResourceView> m_videoSRV;
+    ComPtr<ID3D11Texture2D> m_currentTexture;
+    ComPtr<ID3D11ShaderResourceView> m_defaultSRV;
 };

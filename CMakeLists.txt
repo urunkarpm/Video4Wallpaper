@@ -12,6 +12,8 @@ add_executable(WallpaperEngine WIN32
     src/renderer/DesktopHost.h
     src/renderer/D3D11Renderer.cpp
     src/renderer/D3D11Renderer.h
+    src/video/VideoDecoder.cpp
+    src/video/VideoDecoder.h
 )
 
 target_include_directories(WallpaperEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -24,6 +26,7 @@ target_link_libraries(WallpaperEngine PRIVATE
     mfplat.lib
     mfreadwrite.lib
     mfuuid.lib
+    propsys.lib
     Shlwapi.lib
     User32.lib
     Gdi32.lib

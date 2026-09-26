@@ -13,6 +13,9 @@ struct Vertex {
 };
 
 const char g_shaderSource[] = R"(
+Texture2D g_texture : register(t0);
+SamplerState g_sampler : register(s0);
+
 struct VSInput {
     float3 pos : POSITION;
     float2 tex : TEXCOORD0;
@@ -31,7 +34,7 @@ PSInput VSMain(VSInput input) {
 }
 
 float4 PSMain(PSInput input) : SV_TARGET {
-    return float4(input.tex.x, input.tex.y, 0.5f, 1.0f);
+    return g_texture.Sample(g_sampler, input.tex);
 }
 )";
 
@@ -49,6 +52,10 @@ D3D11Renderer::~D3D11Renderer() {
 }
 
 void D3D11Renderer::Cleanup() {
+    m_defaultSRV.Reset();
+    m_currentTexture.Reset();
+    m_videoSRV.Reset();
+    m_samplerState.Reset();
     m_vertexBuffer.Reset();
     m_inputLayout.Reset();
     m_pixelShader.Reset();
@@ -60,16 +67,19 @@ void D3D11Renderer::Cleanup() {
 }
 
 bool D3D11Renderer::Initialize(HWND hWnd) {
+    Logger::LogInfo("D3D11Renderer::Initialize starting...");
     m_hWnd = hWnd;
     if (!CreateDeviceAndSwapChain(hWnd)) {
         Logger::LogError("Failed to create D3D11 Device and SwapChain.");
         return false;
     }
+    Logger::LogInfo("Device and SwapChain created.");
 
     if (!CreateRenderTargetView()) {
         Logger::LogError("Failed to create RenderTargetView.");
         return false;
     }
+    Logger::LogInfo("RenderTargetView created.");
 
     if (!InitShadersAndBuffers()) {
         Logger::LogError("Failed to initialize Shaders and Buffers.");
@@ -81,6 +91,7 @@ bool D3D11Renderer::Initialize(HWND hWnd) {
 }
 
 bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
+    Logger::LogInfo("CreateDeviceAndSwapChain starting...");
     UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
     D3D_FEATURE_LEVEL featureLevels[] = {
@@ -91,6 +102,8 @@ bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
     };
 
     D3D_FEATURE_LEVEL featureLevel;
+
+    Logger::LogInfo("Attempting D3D11CreateDevice (HARDWARE)...");
     HRESULT hr = D3D11CreateDevice(
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
@@ -106,6 +119,7 @@ bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
 
     if (FAILED(hr)) {
         Logger::LogWarning("D3D11CreateDevice with HARDWARE driver failed (" + HrToString(hr) + "). Fallback to WARP software renderer.");
+        Logger::LogInfo("Attempting D3D11CreateDevice (WARP)...");
         hr = D3D11CreateDevice(
             nullptr,
             D3D_DRIVER_TYPE_WARP,
@@ -124,6 +138,8 @@ bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
         Logger::LogError("D3D11CreateDevice failed with code: " + HrToString(hr));
         return false;
     }
+
+    Logger::LogInfo("D3D11 Device created successfully. Querying DXGI Factory...");
 
     ComPtr<IDXGIDevice> dxgiDevice;
     hr = m_device.As(&dxgiDevice);
@@ -154,6 +170,8 @@ bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
     if (height == 0) height = 1080;
     m_width = width;
     m_height = height;
+
+    Logger::LogInfo("Creating DXGI SwapChain (" + std::to_string(width) + "x" + std::to_string(height) + ")...");
 
     DXGI_SWAP_CHAIN_DESC1 sd = {};
     sd.Width = width;
@@ -194,6 +212,7 @@ bool D3D11Renderer::CreateDeviceAndSwapChain(HWND hWnd) {
         return false;
     }
 
+    Logger::LogInfo("SwapChain created successfully.");
     return true;
 }
 
@@ -223,6 +242,42 @@ bool D3D11Renderer::CreateRenderTargetView() {
     return true;
 }
 
+bool D3D11Renderer::CreateDefaultTexture() {
+    uint32_t pixels[4] = {
+        0xFF0000FF, 0xFF00FF00, // RGBA format
+        0xFFFF0000, 0xFFFFFFFF
+    };
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = 2;
+    desc.Height = 2;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = pixels;
+    initData.SysMemPitch = 2 * sizeof(uint32_t);
+
+    ComPtr<ID3D11Texture2D> texture;
+    HRESULT hr = m_device->CreateTexture2D(&desc, &initData, &texture);
+    if (FAILED(hr)) {
+        Logger::LogError("CreateTexture2D for default texture failed: " + HrToString(hr));
+        return false;
+    }
+
+    hr = m_device->CreateShaderResourceView(texture.Get(), nullptr, &m_defaultSRV);
+    if (FAILED(hr)) {
+        Logger::LogError("CreateShaderResourceView for default texture failed: " + HrToString(hr));
+        return false;
+    }
+
+    return true;
+}
+
 bool D3D11Renderer::InitShadersAndBuffers() {
     Vertex vertices[] = {
         { -1.0f,  1.0f, 0.0f, 0.0f, 0.0f },
@@ -244,6 +299,26 @@ bool D3D11Renderer::InitShadersAndBuffers() {
     HRESULT hr = m_device->CreateBuffer(&vbd, &initData, &m_vertexBuffer);
     if (FAILED(hr)) {
         Logger::LogError("CreateBuffer for VertexBuffer failed: " + HrToString(hr));
+        return false;
+    }
+
+    D3D11_SAMPLER_DESC sampDesc = {};
+    sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampDesc.MinLOD = 0;
+    sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    hr = m_device->CreateSamplerState(&sampDesc, &m_samplerState);
+    if (FAILED(hr)) {
+        Logger::LogError("CreateSamplerState failed: " + HrToString(hr));
+        return false;
+    }
+
+    if (!CreateDefaultTexture()) {
+        Logger::LogError("CreateDefaultTexture failed.");
         return false;
     }
 
@@ -357,6 +432,15 @@ bool D3D11Renderer::RenderTestFrame() {
     m_context->OMSetRenderTargets(1, m_renderTargetView.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView(m_renderTargetView.Get(), clearColor);
 
+    D3D11_VIEWPORT vp = {};
+    vp.Width = static_cast<float>(m_width);
+    vp.Height = static_cast<float>(m_height);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    m_context->RSSetViewports(1, &vp);
+
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
     m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
@@ -366,7 +450,68 @@ bool D3D11Renderer::RenderTestFrame() {
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
 
+    m_context->PSSetShaderResources(0, 1, m_defaultSRV.GetAddressOf());
+    m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+
     m_context->Draw(6, 0);
+
+    ID3D11ShaderResourceView* nullSRV[] = { nullptr };
+    m_context->PSSetShaderResources(0, 1, nullSRV);
+
+    HRESULT hr = m_swapChain->Present(1, 0);
+    if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
+        Logger::LogWarning("D3D11 device lost/reset during Present (" + HrToString(hr) + "). Initiating recovery...");
+        HandleDeviceLost();
+        return false;
+    }
+
+    return SUCCEEDED(hr);
+}
+
+bool D3D11Renderer::RenderVideoFrame(const DecodedFrame& frame) {
+    if (!frame.texture) {
+        return RenderTestFrame();
+    }
+
+    if (m_currentTexture.Get() != frame.texture.Get()) {
+        m_videoSRV.Reset();
+        HRESULT hr = m_device->CreateShaderResourceView(frame.texture.Get(), nullptr, &m_videoSRV);
+        if (FAILED(hr)) {
+            Logger::LogError("CreateShaderResourceView for video frame texture failed: " + HrToString(hr));
+            return false;
+        }
+        m_currentTexture = frame.texture;
+    }
+
+    float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    m_context->OMSetRenderTargets(1, m_renderTargetView.GetAddressOf(), nullptr);
+    m_context->ClearRenderTargetView(m_renderTargetView.Get(), clearColor);
+
+    D3D11_VIEWPORT vp = {};
+    vp.Width = static_cast<float>(m_width);
+    vp.Height = static_cast<float>(m_height);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    m_context->RSSetViewports(1, &vp);
+
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
+    m_context->IASetInputLayout(m_inputLayout.Get());
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+
+    m_context->PSSetShaderResources(0, 1, m_videoSRV.GetAddressOf());
+    m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+
+    m_context->Draw(6, 0);
+
+    ID3D11ShaderResourceView* nullSRV[] = { nullptr };
+    m_context->PSSetShaderResources(0, 1, nullSRV);
 
     HRESULT hr = m_swapChain->Present(1, 0);
     if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {

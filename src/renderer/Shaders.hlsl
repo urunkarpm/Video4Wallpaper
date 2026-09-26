@@ -1,5 +1,8 @@
 // ponytail: [Basic HLSL quad rendering shader] -> [YUV420 to RGB conversion shader with bilinear filtering]
 
+Texture2D g_texture : register(t0);
+SamplerState g_sampler : register(s0);
+
 struct VSInput {
     float3 pos : POSITION;
     float2 tex : TEXCOORD0;
@@ -19,5 +22,5 @@ PSInput VSMain(VSInput input) {
 
 float4 PSMain(PSInput input) : SV_TARGET {
     // ponytail: [Procedural animated gradient output] -> [Sample hardware video frame texture]
-    return float4(input.tex.x, input.tex.y, 0.5f, 1.0f);
+    return g_texture.Sample(g_sampler, input.tex);
 }
