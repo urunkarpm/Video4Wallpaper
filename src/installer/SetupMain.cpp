@@ -76,6 +76,24 @@ bool CreateShortcutAtLocation(const fs::path& targetExePath, const fs::path& des
         CoUninitialize();
     }
 
+    if (!success) {
+        // Fallback: PowerShell WScript.Shell shortcut creation
+        std::wstring psCmd = L"powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" + 
+                             destLnkPath.wstring() + L"'); $s.TargetPath='" + targetExePath.wstring() + 
+                             L"'; $s.WorkingDirectory='" + targetExePath.parent_path().wstring() + 
+                             L"'; $s.IconLocation='" + targetExePath.wstring() + L",0'; $s.Save()\"";
+        STARTUPINFOW si = { sizeof(STARTUPINFOW) };
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi = {};
+        if (CreateProcessW(NULL, &psCmd[0], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+            WaitForSingleObject(pi.hProcess, 3000);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            success = true;
+        }
+    }
+
     if (success) {
         // Immediately notify Windows Shell of the created shortcut file so Explorer refreshes Desktop UI
         SHChangeNotify(SHCNE_CREATE, SHCNF_PATHW, destLnkPath.c_str(), NULL);
@@ -86,11 +104,29 @@ bool CreateShortcutAtLocation(const fs::path& targetExePath, const fs::path& des
 void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& shortcutName) {
     std::vector<fs::path> desktopDirs;
 
+    // 1. Direct Environment Variable %USERPROFILE%\Desktop
+    wchar_t userProfile[MAX_PATH] = {};
+    if (GetEnvironmentVariableW(L"USERPROFILE", userProfile, MAX_PATH) > 0) {
+        desktopDirs.push_back(fs::path(userProfile) / L"Desktop");
+        desktopDirs.push_back(fs::path(userProfile) / L"OneDrive" / L"Desktop");
+    }
+
+    // 2. Direct Registry HKCU User Shell Folders Desktop path
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        wchar_t regPath[MAX_PATH] = {};
+        DWORD bufSize = sizeof(regPath);
+        if (RegQueryValueExW(hKey, L"Desktop", NULL, NULL, reinterpret_cast<LPBYTE>(regPath), &bufSize) == ERROR_SUCCESS) {
+            wchar_t expanded[MAX_PATH] = {};
+            ExpandEnvironmentStringsW(regPath, expanded, MAX_PATH);
+            desktopDirs.push_back(expanded);
+        }
+        RegCloseKey(hKey);
+    }
+
+    // 3. Shell Folders & Known Folders APIs
     wchar_t pathBuf[MAX_PATH] = {};
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, pathBuf))) {
-        desktopDirs.push_back(pathBuf);
-    }
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOP, NULL, 0, pathBuf))) {
         desktopDirs.push_back(pathBuf);
     }
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_COMMON_DESKTOPDIRECTORY, NULL, 0, pathBuf))) {
@@ -107,32 +143,11 @@ void CreateDesktopShortcuts(const fs::path& targetExePath, const std::wstring& s
         CoTaskMemFree(knownPath);
     }
 
-    wchar_t userProfile[MAX_PATH] = {};
-    if (GetEnvironmentVariableW(L"USERPROFILE", userProfile, MAX_PATH) > 0) {
-        desktopDirs.push_back(fs::path(userProfile) / L"Desktop");
-        desktopDirs.push_back(fs::path(userProfile) / L"OneDrive" / L"Desktop");
-    }
-
+    // Create shortcut across all resolved desktop folders
     for (const auto& dir : desktopDirs) {
         if (fs::exists(dir)) {
             fs::path lnkPath = dir / (shortcutName + L".lnk");
-            if (!CreateShortcutAtLocation(targetExePath, lnkPath)) {
-                // Fallback: PowerShell WScript.Shell shortcut creation
-                std::wstring psCmd = L"powershell -WindowStyle Hidden -Command \"$s=(New-Object -COM WScript.Shell).CreateShortcut('" + 
-                                     lnkPath.wstring() + L"'); $s.TargetPath='" + targetExePath.wstring() + 
-                                     L"'; $s.WorkingDirectory='" + targetExePath.parent_path().wstring() + 
-                                     L"'; $s.IconLocation='" + targetExePath.wstring() + L",0'; $s.Save()\"";
-                STARTUPINFOW si = { sizeof(STARTUPINFOW) };
-                si.dwFlags = STARTF_USESHOWWINDOW;
-                si.wShowWindow = SW_HIDE;
-                PROCESS_INFORMATION pi = {};
-                if (CreateProcessW(NULL, &psCmd[0], NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-                    WaitForSingleObject(pi.hProcess, 3000);
-                    CloseHandle(pi.hProcess);
-                    CloseHandle(pi.hThread);
-                    SHChangeNotify(SHCNE_CREATE, SHCNF_PATHW, lnkPath.c_str(), NULL);
-                }
-            }
+            CreateShortcutAtLocation(targetExePath, lnkPath);
         }
     }
 
