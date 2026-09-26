@@ -8,6 +8,8 @@ add_executable(WallpaperEngine WIN32
     src/main.cpp
     src/core/Logger.cpp
     src/core/Logger.h
+    src/monitor/MonitorManager.cpp
+    src/monitor/MonitorManager.h
     src/renderer/DesktopHost.cpp
     src/renderer/DesktopHost.h
     src/renderer/D3D11Renderer.cpp
@@ -30,6 +32,7 @@ target_link_libraries(WallpaperEngine PRIVATE
     mfuuid.lib
     propsys.lib
     Shlwapi.lib
+    Shcore.lib
     User32.lib
     Gdi32.lib
 )

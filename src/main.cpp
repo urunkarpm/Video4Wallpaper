@@ -2,13 +2,36 @@
 #include <string>
 #include <filesystem>
 #include "core/Logger.h"
+#include "monitor/MonitorManager.h"
 #include "renderer/DesktopHost.h"
 #include "renderer/D3D11Renderer.h"
 #include "renderer/RenderPipeline.h"
 #include "video/VideoDecoder.h"
 
+namespace {
+std::string WStringToString(const std::wstring& wstr) {
+    if (wstr.empty()) return std::string();
+    int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], static_cast<int>(wstr.size()), NULL, 0, NULL, NULL);
+    std::string strTo(sizeNeeded, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], static_cast<int>(wstr.size()), &strTo[0], sizeNeeded, NULL, NULL);
+    return strTo;
+}
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     Logger::LogInfo("WallpaperEngine initializing...");
+
+    auto monitors = MonitorManager::EnumerateMonitors();
+    Logger::LogInfo("Monitor Enumeration Complete. Total active monitors: " + std::to_string(monitors.size()));
+
+    RECT virtualBounds = MonitorManager::GetVirtualScreenBounds();
+    Logger::LogInfo("Virtual Screen Bounds: [" + std::to_string(virtualBounds.left) + ", " + std::to_string(virtualBounds.top) +
+                    " - " + std::to_string(virtualBounds.right - virtualBounds.left) + "x" + std::to_string(virtualBounds.bottom - virtualBounds.top) + "]");
+
+    MonitorInfo primary = MonitorManager::GetPrimaryMonitor();
+    Logger::LogInfo("Primary Monitor: Device=" + WStringToString(primary.deviceName) +
+                    ", Resolution=" + std::to_string(primary.width) + "x" + std::to_string(primary.height) +
+                    " @ " + std::to_string(primary.refreshRate) + "Hz, DPI=" + std::to_string(primary.dpi));
 
     HWND hWorkerW = DesktopHost::GetWorkerWHandle();
     if (!hWorkerW) {
@@ -27,6 +50,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Logger::LogError("Failed to initialize D3D11Renderer.");
         return 1;
     }
+
+    SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
+
+    Logger::LogInfo("Testing aspect scaling modes and GPU viewport quad calculations...");
+    renderer.SetScalingMode(ScalingMode::Fill);
+    renderer.SetScalingMode(ScalingMode::Fit);
+    renderer.SetScalingMode(ScalingMode::Stretch);
+    renderer.SetScalingMode(ScalingMode::Crop);
+    renderer.SetScalingMode(ScalingMode::Original);
+    renderer.SetScalingMode(ScalingMode::Fill);
 
     VideoDecoder decoder;
     if (!decoder.Initialize(renderer.GetDevice())) {
@@ -85,20 +118,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             Logger::LogInfo("Testing RenderPipeline Pause mechanism at frame count: " + std::to_string(frameCount));
             pipeline.Pause();
             
-            // Sleep for 300ms in WinMain to verify zero-waste idle behavior on render thread
             Sleep(300);
 
             Logger::LogInfo("Testing RenderPipeline Resume mechanism.");
             pipeline.Resume();
         }
 
-        // Run until at least 350 frames rendered
         if (frameCount >= 350) {
             Logger::LogInfo("Target frame count reached (350+ frames). Initiating clean shutdown.");
             break;
         }
 
-        Sleep(5); // Main thread yield to stay responsive to UI/win32 messages
+        Sleep(5);
     }
 
     uint64_t totalFrames = pipeline.GetFrameCount();

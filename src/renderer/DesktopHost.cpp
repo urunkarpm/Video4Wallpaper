@@ -1,4 +1,6 @@
 #include "renderer/DesktopHost.h"
+#include "renderer/D3D11Renderer.h"
+#include "monitor/MonitorManager.h"
 #include "core/Logger.h"
 
 // ponytail: [Basic Win32 Desktop Window Injection] -> [Multi-monitor virtual screen positioning and DPI-aware scaling manager]
@@ -45,6 +47,31 @@ HWND DesktopHost::GetWorkerWHandle() {
 
 LRESULT CALLBACK WallpaperWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
+    case WM_DISPLAYCHANGE:
+    case WM_DPICHANGED: {
+        Logger::LogInfo("Display geometry or DPI change detected (msg=" + std::to_string(message) + ")");
+        RECT bounds = MonitorManager::GetVirtualScreenBounds();
+        UINT width = bounds.right - bounds.left;
+        UINT height = bounds.bottom - bounds.top;
+        SetWindowPos(hWnd, NULL, bounds.left, bounds.top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+
+        auto* renderer = reinterpret_cast<D3D11Renderer*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
+        if (renderer) {
+            renderer->OnResize(width, height);
+        }
+        return 0;
+    }
+    case WM_SIZE: {
+        UINT width = LOWORD(lParam);
+        UINT height = HIWORD(lParam);
+        if (width > 0 && height > 0) {
+            auto* renderer = reinterpret_cast<D3D11Renderer*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
+            if (renderer) {
+                renderer->OnResize(width, height);
+            }
+        }
+        return 0;
+    }
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
@@ -75,28 +102,21 @@ HWND DesktopHost::CreateWallpaperWindow(HINSTANCE hInstance, HWND hWorkerW) {
 
     Logger::LogInfo("Window class registered. Creating window...");
 
-    int x = GetSystemMetrics(SM_XVIRTUALSCREEN);
-    int y = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    int cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    int cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    RECT bounds = MonitorManager::GetVirtualScreenBounds();
+    int x = bounds.left;
+    int y = bounds.top;
+    int cx = bounds.right - bounds.left;
+    int cy = bounds.bottom - bounds.top;
 
-    if (cx <= 0 || cy <= 0) {
-        cx = GetSystemMetrics(SM_CXSCREEN);
-        cy = GetSystemMetrics(SM_CYSCREEN);
-        x = 0;
-        y = 0;
-    }
-    if (cx <= 0 || cy <= 0) {
-        cx = 1920;
-        cy = 1080;
-    }
+    Logger::LogInfo("Wallpaper window virtual screen placement: [" + std::to_string(x) + ", " + std::to_string(y) + 
+                    " - " + std::to_string(cx) + "x" + std::to_string(cy) + "]");
 
     HWND hWnd = CreateWindowExW(
         0,
         L"WallpaperEngineClass",
         L"Live Wallpaper Host",
         WS_POPUP,
-        0, 0, cx, cy,
+        x, y, cx, cy,
         NULL,
         NULL,
         hInst,

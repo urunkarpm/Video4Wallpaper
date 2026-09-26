@@ -8,7 +8,15 @@
 
 using Microsoft::WRL::ComPtr;
 
-// ponytail: [Direct3D 11 Basic Quad Renderer] -> [DirectComposition swapchain with zero-copy Media Foundation video texture rendering]
+// ponytail: [Direct3D 11 Aspect-Scaling Quad Renderer] -> [DirectComposition swapchain with zero-copy Media Foundation video texture rendering and per-monitor viewport clipping]
+
+enum class ScalingMode {
+    Fill,
+    Fit,
+    Stretch,
+    Crop,
+    Original
+};
 
 class D3D11Renderer {
 public:
@@ -19,6 +27,11 @@ public:
     void Cleanup();
     bool RenderTestFrame();
     bool RenderVideoFrame(const DecodedFrame& frame);
+    bool OnResize(UINT newWidth, UINT newHeight);
+
+    void SetScalingMode(ScalingMode mode);
+    ScalingMode GetScalingMode() const { return m_scalingMode; }
+    void SetVideoDimensions(UINT width, UINT height);
 
     ID3D11Device* GetDevice() const { return m_device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_context.Get(); }
@@ -28,11 +41,15 @@ private:
     bool CreateRenderTargetView();
     bool InitShadersAndBuffers();
     bool CreateDefaultTexture();
+    void UpdateGeometry();
     void HandleDeviceLost();
 
     HWND m_hWnd = nullptr;
     UINT m_width = 0;
     UINT m_height = 0;
+    UINT m_videoWidth = 1920;
+    UINT m_videoHeight = 1080;
+    ScalingMode m_scalingMode = ScalingMode::Fill;
     float m_animTime = 0.0f;
 
     ComPtr<ID3D11Device> m_device;

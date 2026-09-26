@@ -4,7 +4,7 @@
 #include <sstream>
 #include <iomanip>
 
-// ponytail: [Direct3D 11 Basic Quad Renderer] -> [DirectComposition swapchain with zero-copy Media Foundation video texture rendering]
+// ponytail: [Direct3D 11 Aspect-Scaling Quad Renderer] -> [DirectComposition swapchain with zero-copy Media Foundation video texture rendering and per-monitor viewport clipping]
 
 namespace {
 struct Vertex {
@@ -279,26 +279,15 @@ bool D3D11Renderer::CreateDefaultTexture() {
 }
 
 bool D3D11Renderer::InitShadersAndBuffers() {
-    Vertex vertices[] = {
-        { -1.0f,  1.0f, 0.0f, 0.0f, 0.0f },
-        {  1.0f,  1.0f, 0.0f, 1.0f, 0.0f },
-        { -1.0f, -1.0f, 0.0f, 0.0f, 1.0f },
-
-        { -1.0f, -1.0f, 0.0f, 0.0f, 1.0f },
-        {  1.0f,  1.0f, 0.0f, 1.0f, 0.0f },
-        {  1.0f, -1.0f, 0.0f, 1.0f, 1.0f },
-    };
-
     D3D11_BUFFER_DESC vbd = {};
-    vbd.Usage = D3D11_USAGE_DEFAULT;
-    vbd.ByteWidth = sizeof(vertices);
+    vbd.Usage = D3D11_USAGE_DYNAMIC;
+    vbd.ByteWidth = sizeof(Vertex) * 6;
     vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-    D3D11_SUBRESOURCE_DATA initData = {};
-    initData.pSysMem = vertices;
-    HRESULT hr = m_device->CreateBuffer(&vbd, &initData, &m_vertexBuffer);
+    HRESULT hr = m_device->CreateBuffer(&vbd, nullptr, &m_vertexBuffer);
     if (FAILED(hr)) {
-        Logger::LogError("CreateBuffer for VertexBuffer failed: " + HrToString(hr));
+        Logger::LogError("CreateBuffer for dynamic VertexBuffer failed: " + HrToString(hr));
         return false;
     }
 
@@ -418,6 +407,153 @@ bool D3D11Renderer::InitShadersAndBuffers() {
         return false;
     }
 
+    UpdateGeometry();
+    return true;
+}
+
+void D3D11Renderer::SetScalingMode(ScalingMode mode) {
+    m_scalingMode = mode;
+    std::string modeStr = "Fill";
+    switch (mode) {
+    case ScalingMode::Fill: modeStr = "Fill"; break;
+    case ScalingMode::Fit: modeStr = "Fit"; break;
+    case ScalingMode::Stretch: modeStr = "Stretch"; break;
+    case ScalingMode::Crop: modeStr = "Crop"; break;
+    case ScalingMode::Original: modeStr = "Original"; break;
+    }
+    Logger::LogInfo("SetScalingMode: " + modeStr);
+    UpdateGeometry();
+}
+
+void D3D11Renderer::SetVideoDimensions(UINT width, UINT height) {
+    if (width == 0 || height == 0) return;
+    if (m_videoWidth != width || m_videoHeight != height) {
+        m_videoWidth = width;
+        m_videoHeight = height;
+        Logger::LogInfo("Video dimensions updated: " + std::to_string(width) + "x" + std::to_string(height));
+        UpdateGeometry();
+    }
+}
+
+void D3D11Renderer::UpdateGeometry() {
+    float vpW = static_cast<float>(m_width > 0 ? m_width : 1920);
+    float vpH = static_cast<float>(m_height > 0 ? m_height : 1080);
+    float vidW = static_cast<float>(m_videoWidth > 0 ? m_videoWidth : 1920);
+    float vidH = static_cast<float>(m_videoHeight > 0 ? m_videoHeight : 1080);
+
+    float vpAspect = vpW / vpH;
+    float vidAspect = vidW / vidH;
+
+    float xMin = -1.0f, xMax = 1.0f;
+    float yMin = -1.0f, yMax = 1.0f;
+    float uMin = 0.0f, uMax = 1.0f;
+    float vMin = 0.0f, vMax = 1.0f;
+
+    switch (m_scalingMode) {
+    case ScalingMode::Stretch:
+        xMin = -1.0f; xMax = 1.0f; yMin = -1.0f; yMax = 1.0f;
+        uMin = 0.0f; uMax = 1.0f; vMin = 0.0f; vMax = 1.0f;
+        break;
+
+    case ScalingMode::Fill:
+        if (vidAspect > vpAspect) {
+            float scaleU = vpAspect / vidAspect;
+            uMin = 0.5f - 0.5f * scaleU;
+            uMax = 0.5f + 0.5f * scaleU;
+        } else {
+            float scaleV = vidAspect / vpAspect;
+            vMin = 0.5f - 0.5f * scaleV;
+            vMax = 0.5f + 0.5f * scaleV;
+        }
+        break;
+
+    case ScalingMode::Fit:
+        if (vidAspect > vpAspect) {
+            float scaleY = vpAspect / vidAspect;
+            yMin = -scaleY;
+            yMax = scaleY;
+        } else {
+            float scaleX = vidAspect / vpAspect;
+            xMin = -scaleX;
+            xMax = scaleX;
+        }
+        break;
+
+    case ScalingMode::Crop:
+    case ScalingMode::Original: {
+        float scaleX = vidW / vpW;
+        float scaleY = vidH / vpH;
+
+        if (scaleX >= 1.0f) {
+            uMin = 0.5f - 0.5f / scaleX;
+            uMax = 0.5f + 0.5f / scaleX;
+        } else {
+            xMin = -scaleX;
+            xMax = scaleX;
+        }
+
+        if (scaleY >= 1.0f) {
+            vMin = 0.5f - 0.5f / scaleY;
+            vMax = 0.5f + 0.5f / scaleY;
+        } else {
+            yMin = -scaleY;
+            yMax = scaleY;
+        }
+        break;
+    }
+    }
+
+    Logger::LogInfo("UpdateGeometry: Viewport=[" + std::to_string(static_cast<int>(vpW)) + "x" + std::to_string(static_cast<int>(vpH)) +
+                    "], Video=[" + std::to_string(static_cast<int>(vidW)) + "x" + std::to_string(static_cast<int>(vidH)) +
+                    "], Pos=[" + std::to_string(xMin) + "," + std::to_string(yMin) + " to " + std::to_string(xMax) + "," + std::to_string(yMax) +
+                    "], UV=[" + std::to_string(uMin) + "," + std::to_string(vMin) + " to " + std::to_string(uMax) + "," + std::to_string(vMax) + "]");
+
+    Vertex vertices[] = {
+        { xMin,  yMax, 0.0f, uMin, vMin },
+        { xMax,  yMax, 0.0f, uMax, vMin },
+        { xMin,  yMin, 0.0f, uMin, vMax },
+
+        { xMin,  yMin, 0.0f, uMin, vMax },
+        { xMax,  yMax, 0.0f, uMax, vMin },
+        { xMax,  yMin, 0.0f, uMax, vMax },
+    };
+
+    if (m_context && m_vertexBuffer) {
+        D3D11_MAPPED_SUBRESOURCE mapped = {};
+        HRESULT hr = m_context->Map(m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        if (SUCCEEDED(hr)) {
+            memcpy(mapped.pData, vertices, sizeof(vertices));
+            m_context->Unmap(m_vertexBuffer.Get(), 0);
+        }
+    }
+}
+
+bool D3D11Renderer::OnResize(UINT newWidth, UINT newHeight) {
+    if (newWidth == 0 || newHeight == 0) return false;
+    if (m_width == newWidth && m_height == newHeight && m_renderTargetView) return true;
+
+    Logger::LogInfo("D3D11Renderer::OnResize (" + std::to_string(newWidth) + "x" + std::to_string(newHeight) + ")");
+
+    m_width = newWidth;
+    m_height = newHeight;
+
+    if (!m_swapChain) return false;
+
+    m_context->OMSetRenderTargets(0, nullptr, nullptr);
+    m_renderTargetView.Reset();
+
+    HRESULT hr = m_swapChain->ResizeBuffers(0, m_width, m_height, DXGI_FORMAT_UNKNOWN, 0);
+    if (FAILED(hr)) {
+        Logger::LogError("m_swapChain->ResizeBuffers failed: " + HrToString(hr));
+        return false;
+    }
+
+    if (!CreateRenderTargetView()) {
+        Logger::LogError("CreateRenderTargetView failed during OnResize.");
+        return false;
+    }
+
+    UpdateGeometry();
     return true;
 }
 
@@ -471,6 +607,12 @@ bool D3D11Renderer::RenderTestFrame() {
 bool D3D11Renderer::RenderVideoFrame(const DecodedFrame& frame) {
     if (!frame.texture) {
         return RenderTestFrame();
+    }
+
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    frame.texture->GetDesc(&texDesc);
+    if (texDesc.Width > 0 && texDesc.Height > 0) {
+        SetVideoDimensions(texDesc.Width, texDesc.Height);
     }
 
     if (m_currentTexture.Get() != frame.texture.Get()) {
