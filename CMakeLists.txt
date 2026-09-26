@@ -47,3 +47,48 @@ target_link_libraries(WallpaperEngine PRIVATE
     PowrProf.lib
     Psapi.lib
 )
+
+add_executable(BenchmarkTest
+    tests/BenchmarkTest.cpp
+    src/core/Config.cpp
+    src/core/Config.h
+    src/core/Logger.cpp
+    src/core/Logger.h
+    src/monitor/MonitorManager.cpp
+    src/monitor/MonitorManager.h
+    src/performance/PerformanceManager.cpp
+    src/performance/PerformanceManager.h
+    src/renderer/DesktopHost.cpp
+    src/renderer/DesktopHost.h
+    src/renderer/D3D11Renderer.cpp
+    src/renderer/D3D11Renderer.h
+    src/renderer/RenderPipeline.cpp
+    src/renderer/RenderPipeline.h
+    src/tray/SystemTray.cpp
+    src/tray/SystemTray.h
+    src/ui/PerformanceHud.cpp
+    src/ui/PerformanceHud.h
+    src/video/VideoDecoder.cpp
+    src/video/VideoDecoder.h
+)
+
+target_include_directories(BenchmarkTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+target_link_libraries(BenchmarkTest PRIVATE
+    d3d11.lib
+    d3dcompiler.lib
+    dxgi.lib
+    mf.lib
+    mfplat.lib
+    mfreadwrite.lib
+    mfuuid.lib
+    propsys.lib
+    Shlwapi.lib
+    Shcore.lib
+    User32.lib
+    Gdi32.lib
+    Wtsapi32.lib
+    PowrProf.lib
+    Psapi.lib
+)
+
