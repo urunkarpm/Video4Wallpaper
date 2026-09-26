@@ -136,16 +136,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     SystemTray tray;
     SystemTrayCallbacks callbacks;
 
-    callbacks.onSelectVideo = [&decoder, &settings, &configPath, &pipeline](const std::wstring& selectedPath) {
+    callbacks.onSelectVideo = [&decoder, &settings, &configPath, &pipeline, &tray](const std::wstring& selectedPath) {
         if (!selectedPath.empty() && std::filesystem::exists(selectedPath)) {
             Logger::LogInfo("User selected new video wallpaper: " + WStringToString(selectedPath));
+            pipeline.Pause();
             if (decoder.OpenFile(selectedPath)) {
                 settings.wallpaperPath = selectedPath;
                 Config::Save(configPath, settings);
                 pipeline.Resume();
+                tray.SetIsPaused(false);
                 Logger::LogInfo("New video wallpaper loaded and playing.");
             } else {
                 Logger::LogError("Failed to load selected video wallpaper.");
+                pipeline.Resume();
             }
         }
     };
@@ -171,6 +174,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Logger::LogInfo("SystemTray Action: Toggled Performance HUD to " + std::string(newVisible ? "ON" : "OFF"));
     };
 
+    callbacks.onTogglePauseOnBattery = [&perfManager, &settings, &tray, configPath, &pipeline]() {
+        bool newPauseOnBattery = !settings.pauseOnBattery;
+        settings.pauseOnBattery = newPauseOnBattery;
+        perfManager.SetPauseOnBattery(newPauseOnBattery);
+        tray.SetPauseOnBattery(newPauseOnBattery);
+        Config::Save(configPath, settings);
+        if (!newPauseOnBattery && pipeline.IsPaused()) {
+            pipeline.Resume();
+            tray.SetIsPaused(false);
+        }
+        Logger::LogInfo("SystemTray Action: Toggled Pause on Battery to " + std::string(newPauseOnBattery ? "ON" : "OFF"));
+    };
+
     callbacks.onChangeScalingMode = [&renderer, &settings, &tray, configPath](int mode) {
         renderer.SetScalingMode(static_cast<ScalingMode>(mode));
         settings.scalingMode = mode;
@@ -189,6 +205,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
     tray.SetIsPaused(pipeline.IsPaused());
     tray.SetIsHudVisible(hud.IsVisible());
+    tray.SetPauseOnBattery(settings.pauseOnBattery);
     tray.SetScalingMode(settings.scalingMode);
 
     if (!pipeline.Start()) {

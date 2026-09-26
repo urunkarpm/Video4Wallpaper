@@ -12,6 +12,7 @@ enum SystemTrayCommand {
     ID_TRAY_SELECT_VIDEO = 1000,
     ID_TRAY_PAUSE_RESUME = 1001,
     ID_TRAY_TOGGLE_HUD   = 1002,
+    ID_TRAY_PAUSE_BATTERY= 1003,
     ID_TRAY_AUTOSTART    = 1005,
     ID_TRAY_SCALING_FILL = 1010,
     ID_TRAY_SCALING_FIT  = 1011,
@@ -25,6 +26,7 @@ struct SystemTrayCallbacks {
     std::function<void(const std::wstring& path)> onSelectVideo;
     std::function<void()> onTogglePause;
     std::function<void()> onToggleHud;
+    std::function<void()> onTogglePauseOnBattery;
     std::function<void(int scalingMode)> onChangeScalingMode;
     std::function<void()> onExit;
 };
@@ -44,6 +46,7 @@ public:
 
     void SetIsPaused(bool paused) { m_isPaused = paused; }
     void SetIsHudVisible(bool visible) { m_isHudVisible = visible; }
+    void SetPauseOnBattery(bool pauseOnBattery) { m_pauseOnBattery = pauseOnBattery; }
     void SetScalingMode(int mode) { m_currentScalingMode = mode; }
 
     static LRESULT HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -56,6 +59,7 @@ private:
 
     bool m_isPaused = false;
     bool m_isHudVisible = false;
+    bool m_pauseOnBattery = false;
     int m_currentScalingMode = 0;
 
     SystemTrayCallbacks m_callbacks;

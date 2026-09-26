@@ -7,7 +7,7 @@ struct AppSettings {
     std::wstring wallpaperPath;
     int scalingMode = 0; // 0=Fill, 1=Fit, 2=Stretch, 3=Crop, 4=Original
     bool pauseOnFullscreen = true;
-    bool pauseOnBattery = true;
+    bool pauseOnBattery = false; // Default false so wallpapers play out-of-the-box on battery
     bool showPerformanceHud = false;
     double targetFPS = 60.0;
 };

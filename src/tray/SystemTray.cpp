@@ -195,6 +195,7 @@ void SystemTray::ShowContextMenu(HWND hWnd) {
 
     AppendMenuW(hMenu, MF_STRING | (m_isPaused ? MF_CHECKED : 0), ID_TRAY_PAUSE_RESUME, m_isPaused ? L"Resume" : L"Pause");
     AppendMenuW(hMenu, MF_STRING | (m_isHudVisible ? MF_CHECKED : 0), ID_TRAY_TOGGLE_HUD, L"Toggle Performance HUD");
+    AppendMenuW(hMenu, MF_STRING | (m_pauseOnBattery ? MF_CHECKED : 0), ID_TRAY_PAUSE_BATTERY, L"Pause when on Battery Power");
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubMenuScaling), L"Scaling Mode");
 
     bool isAutostart = IsAutostartEnabled();
@@ -248,6 +249,11 @@ LRESULT SystemTray::HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, 
         case ID_TRAY_TOGGLE_HUD:
             if (s_instance->m_callbacks.onToggleHud) {
                 s_instance->m_callbacks.onToggleHud();
+            }
+            break;
+        case ID_TRAY_PAUSE_BATTERY:
+            if (s_instance->m_callbacks.onTogglePauseOnBattery) {
+                s_instance->m_callbacks.onTogglePauseOnBattery();
             }
             break;
         case ID_TRAY_AUTOSTART: {
