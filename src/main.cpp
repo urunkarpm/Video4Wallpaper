@@ -38,10 +38,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Logger::LogInfo("Wallpaper path specified via command-line argument.");
     }
 
-    if (settings.wallpaperPath.empty()) {
-        std::wstring samplePath = L"C:\\Users\\uprasenjeet\\Videos\\Screen Recordings\\Screen Recording 2026-09-06 123705.mp4";
-        if (std::filesystem::exists(samplePath)) {
-            settings.wallpaperPath = samplePath;
+    bool isTestRun = false;
+    for (int i = 1; i < __argc; ++i) {
+        if (__wargv[i] && std::wstring(__wargv[i]) == L"--test-run") {
+            isTestRun = true;
+            break;
         }
     }
 
@@ -78,7 +79,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&renderer));
-
     renderer.SetScalingMode(static_cast<ScalingMode>(settings.scalingMode));
 
     VideoDecoder decoder;
@@ -87,16 +87,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    bool hasVideo = false;
     if (!settings.wallpaperPath.empty() && std::filesystem::exists(settings.wallpaperPath)) {
         if (decoder.OpenFile(settings.wallpaperPath)) {
-            hasVideo = true;
-            Logger::LogInfo("Video playback engine initialized.");
+            Logger::LogInfo("Opened configured video wallpaper: " + WStringToString(settings.wallpaperPath));
         } else {
-            Logger::LogWarning("Failed to open video file. Falling back to test renderer.");
+            Logger::LogWarning("Failed to open video file. Running in procedural background mode.");
         }
     } else {
-        Logger::LogInfo("No valid video file path specified or found. Running in fallback test pattern mode.");
+        Logger::LogInfo("No video specified or file missing. Click 'Select Video Wallpaper...' from System Tray to pick a video.");
     }
 
     RenderPipeline pipeline(&renderer, &decoder);
@@ -126,6 +124,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     SystemTray tray;
     SystemTrayCallbacks callbacks;
+
+    callbacks.onSelectVideo = [&decoder, &settings, &configPath, &pipeline](const std::wstring& selectedPath) {
+        if (!selectedPath.empty() && std::filesystem::exists(selectedPath)) {
+            Logger::LogInfo("User selected new video wallpaper: " + WStringToString(selectedPath));
+            if (decoder.OpenFile(selectedPath)) {
+                settings.wallpaperPath = selectedPath;
+                Config::Save(configPath, settings);
+                pipeline.Resume();
+                Logger::LogInfo("New video wallpaper loaded and playing.");
+            } else {
+                Logger::LogError("Failed to load selected video wallpaper.");
+            }
+        }
+    };
+
     callbacks.onTogglePause = [&pipeline, &tray]() {
         if (pipeline.IsPaused()) {
             Logger::LogInfo("SystemTray Action: Resuming pipeline.");
@@ -172,48 +185,42 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    Logger::LogInfo("RenderPipeline, SystemTray, and PerformanceHud active. Running message loop for 350+ frames...");
+    Logger::LogInfo("WallpaperEngine is running! Use System Tray icon to select video or adjust settings.");
 
     MSG msg = {};
-    bool pauseTested = false;
+    if (isTestRun) {
+        bool pauseTested = false;
+        while (pipeline.IsRunning()) {
+            while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+                if (msg.message == WM_QUIT) {
+                    pipeline.Stop();
+                    break;
+                }
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
 
-    while (pipeline.IsRunning()) {
-        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) {
-                pipeline.Stop();
+            uint64_t frameCount = pipeline.GetFrameCount();
+            if (!pauseTested && frameCount >= 100) {
+                pauseTested = true;
+                pipeline.Pause();
+                tray.SetIsPaused(true);
+                Sleep(200);
+                pipeline.Resume();
+                tray.SetIsPaused(false);
+            }
+
+            if (frameCount >= 350) {
                 break;
             }
+            Sleep(5);
+        }
+    } else {
+        // Continuous background operation until Exit
+        while (GetMessageW(&msg, NULL, 0, 0)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
-
-        uint64_t frameCount = pipeline.GetFrameCount();
-
-        // Automated validation around frame 100
-        if (!pauseTested && frameCount >= 100) {
-            pauseTested = true;
-            Logger::LogInfo("Testing RenderPipeline Pause & HUD toggle at frame count: " + std::to_string(frameCount));
-            pipeline.Pause();
-            tray.SetIsPaused(true);
-
-            hud.SetVisible(true);
-            settings.showPerformanceHud = true;
-            tray.SetIsHudVisible(true);
-            Config::Save(configPath, settings);
-
-            Sleep(300);
-
-            Logger::LogInfo("Testing RenderPipeline Resume mechanism.");
-            pipeline.Resume();
-            tray.SetIsPaused(false);
-        }
-
-        if (frameCount >= 350) {
-            Logger::LogInfo("Target frame count reached (350+ frames). Initiating clean shutdown.");
-            break;
-        }
-
-        Sleep(5);
     }
 
     uint64_t totalFrames = pipeline.GetFrameCount();

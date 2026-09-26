@@ -2,12 +2,14 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <functional>
+#include <string>
 
 // ponytail: [Basic Win32 Shell_NotifyIconW System Tray] -> [Modern Windows AppNotification / Toast notification & WPF/WinUI tray controller]
 
 #define WM_TRAYICON (WM_USER + 1)
 
 enum SystemTrayCommand {
+    ID_TRAY_SELECT_VIDEO = 1000,
     ID_TRAY_PAUSE_RESUME = 1001,
     ID_TRAY_TOGGLE_HUD   = 1002,
     ID_TRAY_SCALING_FILL = 1010,
@@ -19,6 +21,7 @@ enum SystemTrayCommand {
 };
 
 struct SystemTrayCallbacks {
+    std::function<void(const std::wstring& path)> onSelectVideo;
     std::function<void()> onTogglePause;
     std::function<void()> onToggleHud;
     std::function<void(int scalingMode)> onChangeScalingMode;
@@ -34,6 +37,7 @@ public:
     void Shutdown();
 
     void ShowContextMenu(HWND hWnd);
+    static std::wstring PromptSelectVideoFile(HWND hWnd);
 
     void SetIsPaused(bool paused) { m_isPaused = paused; }
     void SetIsHudVisible(bool visible) { m_isHudVisible = visible; }

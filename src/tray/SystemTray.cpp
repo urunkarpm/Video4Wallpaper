@@ -1,5 +1,6 @@
 #include "tray/SystemTray.h"
 #include "core/Logger.h"
+#include <commdlg.h>
 
 // ponytail: [Basic Win32 Shell_NotifyIconW System Tray] -> [Modern Windows AppNotification / Toast notification & WPF/WinUI tray controller]
 
@@ -47,9 +48,30 @@ void SystemTray::Shutdown() {
     }
 }
 
+std::wstring SystemTray::PromptSelectVideoFile(HWND hWnd) {
+    wchar_t szFile[MAX_PATH] = { 0 };
+
+    OPENFILENAMEW ofn = { 0 };
+    ofn.lStructSize = sizeof(OPENFILENAMEW);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFilter = L"Video Files (*.mp4;*.mkv;*.webm;*.mov;*.avi;*.wmv)\0*.mp4;*.mkv;*.webm;*.mov;*.avi;*.wmv\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    ofn.lpstrTitle = L"Select Video Wallpaper";
+
+    if (GetOpenFileNameW(&ofn)) {
+        return std::wstring(szFile);
+    }
+    return L"";
+}
+
 void SystemTray::ShowContextMenu(HWND hWnd) {
     HMENU hMenu = CreatePopupMenu();
     HMENU hSubMenuScaling = CreatePopupMenu();
+
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_SELECT_VIDEO, L"🎬 Select Video Wallpaper...");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
     AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 0 ? MF_CHECKED : 0), ID_TRAY_SCALING_FILL, L"Fill");
     AppendMenuW(hSubMenuScaling, MF_STRING | (m_currentScalingMode == 1 ? MF_CHECKED : 0), ID_TRAY_SCALING_FIT, L"Fit");
@@ -79,14 +101,24 @@ LRESULT SystemTray::HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, 
             s_instance->ShowContextMenu(hWnd);
             return 0;
         } else if (lParam == WM_LBUTTONDBLCLK) {
-            if (s_instance->m_callbacks.onTogglePause) {
-                s_instance->m_callbacks.onTogglePause();
+            if (s_instance->m_callbacks.onSelectVideo) {
+                std::wstring selected = PromptSelectVideoFile(hWnd);
+                if (!selected.empty()) {
+                    s_instance->m_callbacks.onSelectVideo(selected);
+                }
             }
             return 0;
         }
     } else if (message == WM_COMMAND) {
         int id = LOWORD(wParam);
         switch (id) {
+        case ID_TRAY_SELECT_VIDEO: {
+            std::wstring selected = PromptSelectVideoFile(hWnd);
+            if (!selected.empty() && s_instance->m_callbacks.onSelectVideo) {
+                s_instance->m_callbacks.onSelectVideo(selected);
+            }
+            break;
+        }
         case ID_TRAY_PAUSE_RESUME:
             if (s_instance->m_callbacks.onTogglePause) {
                 s_instance->m_callbacks.onTogglePause();
