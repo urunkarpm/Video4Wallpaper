@@ -23,6 +23,17 @@ std::string WStringToString(const std::wstring& wstr) {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    HANDLE hMutex = CreateMutexW(NULL, TRUE, L"WallpaperEngine_SingleInstance_Mutex_987654");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        HWND hExisting = FindWindowW(L"WallpaperEngineClass", NULL);
+        if (hExisting) {
+            PostMessageW(hExisting, WM_COMMAND, ID_TRAY_SELECT_VIDEO, 0);
+        }
+        Logger::LogInfo("WallpaperEngine is already running. Signaled existing instance.");
+        if (hMutex) CloseHandle(hMutex);
+        return 0;
+    }
+
     Logger::LogInfo("WallpaperEngine initializing...");
 
     AppSettings settings;
@@ -239,6 +250,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (hWnd) {
         DestroyWindow(hWnd);
+    }
+
+    if (hMutex) {
+        CloseHandle(hMutex);
     }
 
     Logger::LogInfo("WallpaperEngine shutdown clean.");

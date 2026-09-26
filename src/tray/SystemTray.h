@@ -12,6 +12,7 @@ enum SystemTrayCommand {
     ID_TRAY_SELECT_VIDEO = 1000,
     ID_TRAY_PAUSE_RESUME = 1001,
     ID_TRAY_TOGGLE_HUD   = 1002,
+    ID_TRAY_AUTOSTART    = 1005,
     ID_TRAY_SCALING_FILL = 1010,
     ID_TRAY_SCALING_FIT  = 1011,
     ID_TRAY_SCALING_STRETCH = 1012,
@@ -38,6 +39,8 @@ public:
 
     void ShowContextMenu(HWND hWnd);
     static std::wstring PromptSelectVideoFile(HWND hWnd);
+    static bool IsAutostartEnabled();
+    static bool SetAutostartEnabled(bool enable);
 
     void SetIsPaused(bool paused) { m_isPaused = paused; }
     void SetIsHudVisible(bool visible) { m_isHudVisible = visible; }

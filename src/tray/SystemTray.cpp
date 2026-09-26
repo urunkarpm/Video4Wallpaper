@@ -1,6 +1,7 @@
 #include "tray/SystemTray.h"
 #include "core/Logger.h"
 #include <commdlg.h>
+#include <filesystem>
 
 // ponytail: [Basic Win32 Shell_NotifyIconW System Tray] -> [Modern Windows AppNotification / Toast notification & WPF/WinUI tray controller]
 
@@ -48,6 +49,39 @@ void SystemTray::Shutdown() {
     }
 }
 
+bool SystemTray::IsAutostartEnabled() {
+    HKEY hKey = NULL;
+    LONG res = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &hKey);
+    if (res != ERROR_SUCCESS) return false;
+
+    wchar_t valBuf[MAX_PATH] = {};
+    DWORD valSize = sizeof(valBuf);
+    res = RegQueryValueExW(hKey, L"WallpaperEngine", NULL, NULL, reinterpret_cast<LPBYTE>(valBuf), &valSize);
+    RegCloseKey(hKey);
+
+    return (res == ERROR_SUCCESS);
+}
+
+bool SystemTray::SetAutostartEnabled(bool enable) {
+    HKEY hKey = NULL;
+    LONG res = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hKey);
+    if (res != ERROR_SUCCESS) return false;
+
+    if (enable) {
+        wchar_t exePath[MAX_PATH] = {};
+        GetModuleFileNameW(NULL, exePath, MAX_PATH);
+        std::wstring valStr = L"\"" + std::wstring(exePath) + L"\"";
+        res = RegSetValueExW(hKey, L"WallpaperEngine", 0, REG_SZ, reinterpret_cast<const BYTE*>(valStr.c_str()), static_cast<DWORD>((valStr.length() + 1) * sizeof(wchar_t)));
+        Logger::LogInfo("SystemTray: Enabled Windows Autostart.");
+    } else {
+        res = RegDeleteValueW(hKey, L"WallpaperEngine");
+        Logger::LogInfo("SystemTray: Disabled Windows Autostart.");
+    }
+
+    RegCloseKey(hKey);
+    return (res == ERROR_SUCCESS);
+}
+
 std::wstring SystemTray::PromptSelectVideoFile(HWND hWnd) {
     wchar_t szFile[MAX_PATH] = { 0 };
 
@@ -82,6 +116,10 @@ void SystemTray::ShowContextMenu(HWND hWnd) {
     AppendMenuW(hMenu, MF_STRING | (m_isPaused ? MF_CHECKED : 0), ID_TRAY_PAUSE_RESUME, m_isPaused ? L"Resume" : L"Pause");
     AppendMenuW(hMenu, MF_STRING | (m_isHudVisible ? MF_CHECKED : 0), ID_TRAY_TOGGLE_HUD, L"Toggle Performance HUD");
     AppendMenuW(hMenu, MF_POPUP, reinterpret_cast<UINT_PTR>(hSubMenuScaling), L"Scaling Mode");
+
+    bool isAutostart = IsAutostartEnabled();
+    AppendMenuW(hMenu, MF_STRING | (isAutostart ? MF_CHECKED : 0), ID_TRAY_AUTOSTART, L"Start automatically with Windows");
+
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"Exit");
 
@@ -129,6 +167,11 @@ LRESULT SystemTray::HandleWindowMessage(HWND hWnd, UINT message, WPARAM wParam, 
                 s_instance->m_callbacks.onToggleHud();
             }
             break;
+        case ID_TRAY_AUTOSTART: {
+            bool current = IsAutostartEnabled();
+            SetAutostartEnabled(!current);
+            break;
+        }
         case ID_TRAY_SCALING_FILL:
             if (s_instance->m_callbacks.onChangeScalingMode) {
                 s_instance->m_callbacks.onChangeScalingMode(0);
