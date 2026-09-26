@@ -3,7 +3,68 @@
 #include <commdlg.h>
 #include <filesystem>
 
-// ponytail: [Basic Win32 Shell_NotifyIconW System Tray] -> [Modern Windows AppNotification / Toast notification & WPF/WinUI tray controller]
+// ponytail: [Programmatic GDI App Logo Icon] -> [Embedded Multi-DPI .ico resource file]
+
+namespace {
+HICON CreateAppLogoIcon() {
+    int cx = GetSystemMetrics(SM_CXSMICON);
+    int cy = GetSystemMetrics(SM_CYSMICON);
+    if (cx <= 0) cx = 16;
+    if (cy <= 0) cy = 16;
+
+    HDC hdcScreen = GetDC(NULL);
+    HDC hdcMem = CreateCompatibleDC(hdcScreen);
+    HBITMAP hbmColor = CreateCompatibleBitmap(hdcScreen, cx, cy);
+    HBITMAP hbmMask = CreateBitmap(cx, cy, 1, 1, NULL);
+
+    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmColor);
+
+    // Draw dark rounded circle background
+    HBRUSH bgBrush = CreateSolidBrush(RGB(18, 22, 32));
+    RECT rect = { 0, 0, cx, cy };
+    FillRect(hdcMem, &rect, bgBrush);
+    DeleteObject(bgBrush);
+
+    // Draw cyan/teal border ring
+    HPEN ringPen = CreatePen(PS_SOLID, 1, RGB(0, 220, 160));
+    HPEN oldPen = (HPEN)SelectObject(hdcMem, ringPen);
+    HBRUSH nullBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+    HBRUSH oldBrush = (HBRUSH)SelectObject(hdcMem, nullBrush);
+    Ellipse(hdcMem, 0, 0, cx, cy);
+
+    // Draw glowing teal play triangle logo
+    HBRUSH playBrush = CreateSolidBrush(RGB(0, 235, 165));
+    SelectObject(hdcMem, playBrush);
+
+    POINT pts[3] = {
+        { static_cast<int>(cx * 0.38), static_cast<int>(cy * 0.25) },
+        { static_cast<int>(cx * 0.75), static_cast<int>(cy * 0.50) },
+        { static_cast<int>(cx * 0.38), static_cast<int>(cy * 0.75) }
+    };
+    Polygon(hdcMem, pts, 3);
+
+    SelectObject(hdcMem, oldBrush);
+    SelectObject(hdcMem, oldPen);
+    DeleteObject(playBrush);
+    DeleteObject(ringPen);
+
+    SelectObject(hdcMem, hbmOld);
+    DeleteDC(hdcMem);
+    ReleaseDC(NULL, hdcScreen);
+
+    ICONINFO ii = {};
+    ii.fIcon = TRUE;
+    ii.hbmColor = hbmColor;
+    ii.hbmMask = hbmMask;
+
+    HICON hIcon = CreateIconIndirect(&ii);
+
+    DeleteObject(hbmColor);
+    DeleteObject(hbmMask);
+
+    return hIcon;
+}
+}
 
 SystemTray* SystemTray::s_instance = nullptr;
 
@@ -28,8 +89,14 @@ bool SystemTray::Initialize(HWND hWnd, SystemTrayCallbacks callbacks) {
     m_nid.uID = 1;
     m_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     m_nid.uCallbackMessage = WM_TRAYICON;
-    m_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
-    wcscpy_s(m_nid.szTip, L"WallpaperEngine");
+    
+    // Create custom App Logo Icon
+    m_nid.hIcon = CreateAppLogoIcon();
+    if (!m_nid.hIcon) {
+        m_nid.hIcon = LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
+    }
+
+    wcscpy_s(m_nid.szTip, L"Windows Live Wallpaper Engine");
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid)) {
         Logger::LogError("Failed to add system tray icon.");
@@ -37,13 +104,17 @@ bool SystemTray::Initialize(HWND hWnd, SystemTrayCallbacks callbacks) {
     }
 
     m_initialized = true;
-    Logger::LogInfo("SystemTray icon initialized successfully.");
+    Logger::LogInfo("SystemTray icon initialized with custom app logo successfully.");
     return true;
 }
 
 void SystemTray::Shutdown() {
     if (m_initialized) {
         Shell_NotifyIconW(NIM_DELETE, &m_nid);
+        if (m_nid.hIcon) {
+            DestroyIcon(m_nid.hIcon);
+            m_nid.hIcon = NULL;
+        }
         m_initialized = false;
         Logger::LogInfo("SystemTray icon removed.");
     }
