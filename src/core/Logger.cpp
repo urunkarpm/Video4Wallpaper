@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <cstdio>
 
 void Logger::Log(LogLevel level, const std::string& message) {
     auto now = std::chrono::system_clock::now();
@@ -30,9 +31,6 @@ void Logger::Log(LogLevel level, const std::string& message) {
     std::string formatted = ss.str();
     OutputDebugStringA(formatted.c_str());
 
-    if (level == LogLevel::Error) {
-        std::cerr << formatted << std::flush;
-    } else {
-        std::cout << formatted << std::flush;
-    }
+    std::printf("%s", formatted.c_str());
+    std::fflush(stdout);
 }

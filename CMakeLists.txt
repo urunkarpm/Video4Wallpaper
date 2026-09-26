@@ -8,12 +8,17 @@ add_executable(WallpaperEngine WIN32
     src/main.cpp
     src/core/Logger.cpp
     src/core/Logger.h
+    src/renderer/DesktopHost.cpp
+    src/renderer/DesktopHost.h
+    src/renderer/D3D11Renderer.cpp
+    src/renderer/D3D11Renderer.h
 )
 
 target_include_directories(WallpaperEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(WallpaperEngine PRIVATE
     d3d11.lib
+    d3dcompiler.lib
     dxgi.lib
     mf.lib
     mfplat.lib
