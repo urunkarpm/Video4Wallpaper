@@ -92,3 +92,28 @@ target_link_libraries(BenchmarkTest PRIVATE
     Psapi.lib
 )
 
+# Installer executable target
+add_executable(WallpaperEngine-Setup WIN32
+    src/installer/SetupMain.cpp
+)
+target_link_libraries(WallpaperEngine-Setup PRIVATE
+    Shell32.lib
+    Shlwapi.lib
+    User32.lib
+)
+
+# Install targets
+install(TARGETS WallpaperEngine WallpaperEngine-Setup DESTINATION bin)
+
+# CPack Installer Configuration
+set(CPACK_PACKAGE_NAME "WallpaperEngine")
+set(CPACK_PACKAGE_VENDOR "Antigravity")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High-Performance Native Windows Live Wallpaper Engine")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_GENERATOR "NSIS;ZIP")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "WallpaperEngine")
+set(CPACK_NSIS_DISPLAY_NAME "Windows Live Wallpaper Engine")
+set(CPACK_NSIS_PACKAGE_NAME "WallpaperEngine Setup")
+
+include(CPack)
+
