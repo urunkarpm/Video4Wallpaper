@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Video4Wallpaper</string>
+    <string name="wallpaper_label">Video Live Wallpaper</string>
+    <string name="wallpaper_description">Ultra low-power video live wallpaper renderer.</string>
+</resources>
