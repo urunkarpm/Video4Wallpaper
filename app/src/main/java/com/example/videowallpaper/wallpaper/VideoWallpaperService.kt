@@ -68,25 +68,23 @@ class VideoWallpaperService : WallpaperService() {
 
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
-            Log.d(TAG, "onSurfaceCreated called")
-            holder.setFormat(PixelFormat.RGBA_8888)
+            Log.d(TAG, "onSurfaceCreated called, isPreview=$isPreview")
             playbackManager.setSurface(holder.surface)
             updatePlayer()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
-            Log.d(TAG, "onSurfaceChanged called (${width}x${height})")
-            holder.setFormat(PixelFormat.RGBA_8888)
+            Log.d(TAG, "onSurfaceChanged called (${width}x${height}), isPreview=$isPreview")
             playbackManager.setSurface(holder.surface)
             updatePlayer()
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
             super.onVisibilityChanged(visible)
-            Log.d(TAG, "onVisibilityChanged: visible=$visible, isScreenOn=${powerTracker.isScreenOn}")
+            Log.d(TAG, "onVisibilityChanged: visible=$visible, isScreenOn=${powerTracker.isScreenOn}, isPreview=$isPreview")
             isEngineVisible = visible
-            if (visible && powerTracker.isScreenOn) {
+            if (visible && (powerTracker.isScreenOn || isPreview)) {
                 playbackManager.play()
             } else {
                 playbackManager.pause()
@@ -118,8 +116,8 @@ class VideoWallpaperService : WallpaperService() {
             val uri = currentVideoUri ?: return
             val surface = surfaceHolder?.surface
             if (surface != null && surface.isValid) {
-                val shouldPlay = isEngineVisible && powerTracker.isScreenOn
-                Log.d(TAG, "updatePlayer: initializing ExoPlayer with URI=$uri, shouldPlay=$shouldPlay")
+                val shouldPlay = isEngineVisible && (powerTracker.isScreenOn || isPreview)
+                Log.d(TAG, "updatePlayer: initializing ExoPlayer with URI=$uri, shouldPlay=$shouldPlay, isPreview=$isPreview")
                 playbackManager.initializePlayer(surface, uri, isLoopEnabled, autoPlay = shouldPlay)
             } else {
                 Log.d(TAG, "updatePlayer: surface not valid yet")
