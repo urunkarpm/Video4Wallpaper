@@ -26,6 +26,7 @@ A simple Android app that lets you set any video from your phone as your live ho
 ## Settings
 
 - **Loop Video**: Keep this turned on to have your video continuously repeat on your home screen.
+- **In-App GitHub Updates**: Check for new releases directly from GitHub, download updates right inside the app, and install them with one tap.
 
 ---
 

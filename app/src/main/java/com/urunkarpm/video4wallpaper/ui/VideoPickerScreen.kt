@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -45,6 +46,7 @@ fun VideoPickerScreen(
     selectedUri: String?,
     onVideoSelected: (String) -> Unit,
     onImportVideo: (Uri) -> Unit,
+    onApplyWallpaper: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -106,22 +108,33 @@ fun VideoPickerScreen(
         }
     }
 
-    Column(modifier = modifier.padding(16.dp)) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Image(
                     painter = painterResource(id = R.mipmap.ic_launcher_round),
                     contentDescription = "App Logo",
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(text = "Wallpaper Gallery", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = "Video Wallpaper",
+                    style = MaterialTheme.typography.titleLarge
+                )
             }
             Button(
                 onClick = {
@@ -135,18 +148,20 @@ fun VideoPickerScreen(
                     } else {
                         permissionLauncher.launch(permissionToRequest)
                     }
-                }
+                },
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text("Import Video")
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
 
+        // Preview Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp),
-            shape = RoundedCornerShape(12.dp),
+                .height(190.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
@@ -166,28 +181,31 @@ fun VideoPickerScreen(
                         },
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(16.dp))
                     )
                     Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                        shape = RoundedCornerShape(bottomEnd = 8.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        shape = RoundedCornerShape(bottomEnd = 10.dp),
                         modifier = Modifier.align(Alignment.TopStart)
                     ) {
                         Text(
                             text = videos.firstOrNull { it.uri == selectedUri }?.fileName ?: "Preview",
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
             } else {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Select a video below to preview",
+                        text = if (videos.isEmpty()) "Import a video to preview" else "Select a video below to preview",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -195,37 +213,122 @@ fun VideoPickerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Apply as Live Wallpaper Button
+        Button(
+            onClick = onApplyWallpaper,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(12.dp),
+            enabled = selectedUri != null || videos.isNotEmpty()
         ) {
-            items(videos) { video ->
-                val isSelected = video.uri == selectedUri
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                    ),
+            Text(
+                text = "Apply as Live Wallpaper",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+
+        // Section Title: Imported Videos
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Your Videos",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            if (videos.isNotEmpty()) {
+                Text(
+                    text = "${videos.size} available",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Videos List or Empty State
+        if (videos.isEmpty()) {
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onVideoSelected(video.uri) }
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
+                    Text(
+                        text = "No videos added yet",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        text = "Tap 'Import Video' above to pick video files from your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(videos) { video ->
+                    val isSelected = video.uri == selectedUri
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                        ),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .clickable { onVideoSelected(video.uri) }
                     ) {
-                        Text(
-                            text = video.fileName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 12.dp)
-                        )
-                        Badge {
-                            Text("${video.fileSizeBytes / (1024 * 1024)} MB")
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp)
+                            ) {
+                                Text(
+                                    text = video.fileName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (isSelected) {
+                                    Text(
+                                        text = "Selected for Wallpaper",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Badge(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ) {
+                                val mb = String.format("%.1f", video.fileSizeBytes / (1024f * 1024f))
+                                Text(
+                                    text = "$mb MB",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }

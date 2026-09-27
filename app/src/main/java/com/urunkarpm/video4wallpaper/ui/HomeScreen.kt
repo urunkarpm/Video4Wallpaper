@@ -6,11 +6,13 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 
 @Composable
@@ -23,6 +25,7 @@ fun HomeScreen(
     val videos by viewModel.videos.collectAsState()
     val selectedUri by viewModel.selectedUri.collectAsState()
     val loopEnabled by viewModel.loopEnabled.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -49,48 +52,45 @@ fun HomeScreen(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     label = { Text("Gallery") },
-                    icon = {}
+                    icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Gallery") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     label = { Text("Settings") },
-                    icon = {}
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") }
                 )
             }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = modifier
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            Button(
-                onClick = {
-                    if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
-                        viewModel.selectVideo(videos.first().uri)
-                    }
-                    onApplyWallpaper()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text("Apply as Live Wallpaper")
-            }
-
             when (selectedTab) {
                 0 -> VideoPickerScreen(
                     videos = videos,
                     selectedUri = selectedUri,
                     onVideoSelected = { viewModel.selectVideo(it) },
                     onImportVideo = { viewModel.importVideo(it) },
-                    modifier = Modifier.weight(1f)
+                    onApplyWallpaper = {
+                        if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
+                            viewModel.selectVideo(videos.first().uri)
+                        }
+                        onApplyWallpaper()
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
                 1 -> SettingsScreen(
                     loopEnabled = loopEnabled,
                     onLoopChanged = { viewModel.setLoopEnabled(it) },
-                    modifier = Modifier.weight(1f)
+                    currentVersion = viewModel.currentVersion,
+                    updateState = updateState,
+                    onCheckForUpdates = { viewModel.checkForUpdates() },
+                    onDownloadUpdate = { url, version -> viewModel.downloadUpdate(url, version) },
+                    onInstallUpdate = { apkUri -> viewModel.installUpdate(context, apkUri) },
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
