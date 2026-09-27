@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.videowallpaper.utils.MetricsCollector
 
 @Composable
 fun HomeScreen(
@@ -21,11 +20,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val metricsCollector = remember { MetricsCollector(context) }
     val videos by viewModel.videos.collectAsState()
     val selectedUri by viewModel.selectedUri.collectAsState()
-    val targetFps by viewModel.targetFps.collectAsState()
-    val batteryOpt by viewModel.batteryOpt.collectAsState()
     val loopEnabled by viewModel.loopEnabled.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -69,13 +65,6 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            ComposableStatsPanel(
-                estimatedMw = metricsCollector.getBatteryDrainEstimateMw(),
-                currentFps = targetFps,
-                batteryOpt = batteryOpt,
-                modifier = Modifier.padding(16.dp)
-            )
-
             Button(
                 onClick = {
                     if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
@@ -85,12 +74,10 @@ fun HomeScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(16.dp)
             ) {
                 Text("Apply as Live Wallpaper")
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             when (selectedTab) {
                 0 -> VideoPickerScreen(
@@ -101,11 +88,7 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f)
                 )
                 1 -> SettingsScreen(
-                    targetFps = targetFps,
-                    batteryOpt = batteryOpt,
                     loopEnabled = loopEnabled,
-                    onFpsChanged = { viewModel.setTargetFps(it) },
-                    onBatteryOptChanged = { viewModel.setBatteryOpt(it) },
                     onLoopChanged = { viewModel.setLoopEnabled(it) },
                     modifier = Modifier.weight(1f)
                 )

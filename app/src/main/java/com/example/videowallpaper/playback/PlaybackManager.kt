@@ -20,6 +20,8 @@ class PlaybackManager(private val context: Context) {
 
     private var player: ExoPlayer? = null
 
+    fun hasPlayer(): Boolean = player != null
+
     fun initializePlayer(surface: Surface?, videoUri: Uri, loop: Boolean = true, autoPlay: Boolean = true) {
         release()
 
@@ -55,6 +57,10 @@ class PlaybackManager(private val context: Context) {
                 addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
                         Log.e(TAG, "ExoPlayer error: ${error.message}", error)
+                        // ponytail: Instant re-prepare on codec crash when surface buffers recycle.
+                        // Ceiling: Repeated fatal errors loop re-preparing.
+                        // Upgrade path: Add backoff counter if corrupt video file continuously faults.
+                        prepare()
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         Log.d(TAG, "Playback state changed: $playbackState (READY=${Player.STATE_READY})")
@@ -81,8 +87,12 @@ class PlaybackManager(private val context: Context) {
     }
 
     fun play() {
-        Log.d(TAG, "ExoPlayer play requested (playerIsNull=${player == null})")
-        player?.playWhenReady = true
+        val p = player ?: return
+        Log.d(TAG, "ExoPlayer play requested (playbackState=${p.playbackState})")
+        if (p.playbackState == Player.STATE_IDLE) {
+            p.prepare()
+        }
+        p.playWhenReady = true
     }
 
     fun pause() {
@@ -94,6 +104,7 @@ class PlaybackManager(private val context: Context) {
         Log.d(TAG, "Releasing ExoPlayer instance")
         player?.let {
             it.stop()
+            it.clearVideoSurface()
             it.release()
         }
         player = null

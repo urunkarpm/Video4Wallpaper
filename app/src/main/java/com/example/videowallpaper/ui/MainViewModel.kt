@@ -25,12 +25,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedUri: StateFlow<String?> = settingsRepository.selectedVideoUri
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val targetFps: StateFlow<Int> = settingsRepository.targetFps
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 30)
-
-    val batteryOpt: StateFlow<Boolean> = settingsRepository.batteryOptEnabled
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
-
     val loopEnabled: StateFlow<Boolean> = settingsRepository.loopEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
@@ -53,18 +47,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun selectVideo(uri: String) {
         viewModelScope.launch {
             settingsRepository.setSelectedVideoUri(uri)
-        }
-    }
-
-    fun setTargetFps(fps: Int) {
-        viewModelScope.launch {
-            settingsRepository.setTargetFps(fps)
-        }
-    }
-
-    fun setBatteryOpt(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsRepository.setBatteryOptEnabled(enabled)
         }
     }
 
