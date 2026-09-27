@@ -1,14 +1,14 @@
-package com.example.videowallpaper.ui
+package com.urunkarpm.video4wallpaper.ui
 
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
-import com.example.videowallpaper.data.db.AppDatabase
-import com.example.videowallpaper.data.db.VideoEntity
-import com.example.videowallpaper.data.pref.SettingsRepository
-import com.example.videowallpaper.utils.FileManager
+import com.urunkarpm.video4wallpaper.data.db.AppDatabase
+import com.urunkarpm.video4wallpaper.data.db.VideoEntity
+import com.urunkarpm.video4wallpaper.data.pref.SettingsRepository
+import com.urunkarpm.video4wallpaper.utils.FileManager
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn

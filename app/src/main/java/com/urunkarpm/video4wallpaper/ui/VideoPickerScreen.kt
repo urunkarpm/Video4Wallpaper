@@ -1,4 +1,4 @@
-package com.example.videowallpaper.ui
+package com.urunkarpm.video4wallpaper.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -32,7 +32,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import com.example.videowallpaper.data.db.VideoEntity
+import com.urunkarpm.video4wallpaper.data.db.VideoEntity
 import java.io.File
 
 @Composable

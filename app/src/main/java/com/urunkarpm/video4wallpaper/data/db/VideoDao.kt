@@ -1,4 +1,4 @@
-package com.example.videowallpaper.data.db
+package com.urunkarpm.video4wallpaper.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert

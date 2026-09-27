@@ -1,4 +1,4 @@
-package com.example.videowallpaper.ui
+package com.urunkarpm.video4wallpaper.ui
 
 import android.Manifest
 import android.content.pm.PackageManager

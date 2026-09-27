@@ -1,11 +1,11 @@
-package com.example.videowallpaper.wallpaper
+package com.urunkarpm.video4wallpaper.wallpaper
 
 import android.net.Uri
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.SurfaceHolder
-import com.example.videowallpaper.data.pref.SettingsRepository
-import com.example.videowallpaper.playback.PlaybackManager
+import com.urunkarpm.video4wallpaper.data.pref.SettingsRepository
+import com.urunkarpm.video4wallpaper.playback.PlaybackManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

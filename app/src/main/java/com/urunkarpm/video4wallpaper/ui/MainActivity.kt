@@ -1,4 +1,4 @@
-package com.example.videowallpaper.ui
+package com.urunkarpm.video4wallpaper.ui
 
 import android.app.WallpaperManager
 import android.content.ComponentName
@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.example.videowallpaper.wallpaper.VideoWallpaperService
+import com.urunkarpm.video4wallpaper.wallpaper.VideoWallpaperService
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()

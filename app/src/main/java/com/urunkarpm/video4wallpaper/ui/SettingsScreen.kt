@@ -1,4 +1,4 @@
-package com.example.videowallpaper.ui
+package com.urunkarpm.video4wallpaper.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*

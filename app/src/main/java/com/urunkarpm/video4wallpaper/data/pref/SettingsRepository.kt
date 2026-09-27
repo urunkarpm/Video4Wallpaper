@@ -1,4 +1,4 @@
-package com.example.videowallpaper.data.pref
+package com.urunkarpm.video4wallpaper.data.pref
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey

@@ -1,4 +1,4 @@
-package com.example.videowallpaper.utils
+package com.urunkarpm.video4wallpaper.utils
 
 import android.content.Context
 import android.net.Uri
