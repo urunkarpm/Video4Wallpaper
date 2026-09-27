@@ -1,5 +1,6 @@
 package com.example.videowallpaper.wallpaper
 
+import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
@@ -15,7 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -37,10 +38,14 @@ class VideoWallpaperService : WallpaperService() {
 
         private var renderThread: HandlerThread? = null
         private var renderHandler: Handler? = null
-        private var isEngineVisible = false
+        private var isEngineVisible = true // Default visible for preview/active
+
+        private var currentVideoUri: Uri? = null
+        private var isLoopEnabled: Boolean = true
 
         override fun onCreate(surfaceHolder: SurfaceHolder?) {
             super.onCreate(surfaceHolder)
+            Log.d(TAG, "onCreate called")
             playbackManager = PlaybackManager(this@VideoWallpaperService)
             batteryOptimizer = BatteryOptimizer(this@VideoWallpaperService)
             thermalMonitor = ThermalMonitor(this@VideoWallpaperService)
@@ -64,13 +69,17 @@ class VideoWallpaperService : WallpaperService() {
         override fun onSurfaceCreated(holder: SurfaceHolder) {
             super.onSurfaceCreated(holder)
             Log.d(TAG, "onSurfaceCreated called")
+            holder.setFormat(PixelFormat.RGBA_8888)
             playbackManager.setSurface(holder.surface)
+            updatePlayer()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
             Log.d(TAG, "onSurfaceChanged called (${width}x${height})")
+            holder.setFormat(PixelFormat.RGBA_8888)
             playbackManager.setSurface(holder.surface)
+            updatePlayer()
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
@@ -89,18 +98,31 @@ class VideoWallpaperService : WallpaperService() {
                 settingsRepository.selectedVideoUri.collect { uriString ->
                     Log.d(TAG, "Observed selectedVideoUri change: $uriString")
                     if (!uriString.isNullOrEmpty()) {
-                        val uri = if (uriString.startsWith("/")) {
+                        currentVideoUri = if (uriString.startsWith("/")) {
                             Uri.fromFile(File(uriString))
                         } else {
                             Uri.parse(uriString)
                         }
-                        val loop = settingsRepository.loopEnabled.first()
-                        playbackManager.initializePlayer(surfaceHolder.surface, uri, loop)
-                        if (isEngineVisible && powerTracker.isScreenOn) {
-                            playbackManager.play()
-                        }
+                        updatePlayer()
                     }
                 }
+            }
+            serviceScope.launch {
+                settingsRepository.loopEnabled.collect { loop ->
+                    isLoopEnabled = loop
+                }
+            }
+        }
+
+        private fun updatePlayer() {
+            val uri = currentVideoUri ?: return
+            val surface = surfaceHolder?.surface
+            if (surface != null && surface.isValid) {
+                val shouldPlay = isEngineVisible && powerTracker.isScreenOn
+                Log.d(TAG, "updatePlayer: initializing ExoPlayer with URI=$uri, shouldPlay=$shouldPlay")
+                playbackManager.initializePlayer(surface, uri, isLoopEnabled, autoPlay = shouldPlay)
+            } else {
+                Log.d(TAG, "updatePlayer: surface not valid yet")
             }
         }
 

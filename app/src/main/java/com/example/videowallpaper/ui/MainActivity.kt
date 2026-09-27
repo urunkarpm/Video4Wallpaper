@@ -4,6 +4,7 @@ import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -24,13 +25,22 @@ class MainActivity : ComponentActivity() {
                     HomeScreen(
                         viewModel = viewModel,
                         onApplyWallpaper = {
-                            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-                                putExtra(
-                                    WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
-                                    ComponentName(this@MainActivity, VideoWallpaperService::class.java)
-                                )
+                            try {
+                                val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                                    putExtra(
+                                        WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                                        ComponentName(this@MainActivity, VideoWallpaperService::class.java)
+                                    )
+                                }
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                try {
+                                    val fallbackIntent = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
+                                    startActivity(fallbackIntent)
+                                } catch (e2: Exception) {
+                                    Toast.makeText(this@MainActivity, "Could not open Live Wallpaper chooser", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                            startActivity(intent)
                         }
                     )
                 }

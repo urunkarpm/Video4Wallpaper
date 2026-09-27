@@ -20,7 +20,7 @@ class PlaybackManager(private val context: Context) {
 
     private var player: ExoPlayer? = null
 
-    fun initializePlayer(surface: Surface?, videoUri: Uri, loop: Boolean = true) {
+    fun initializePlayer(surface: Surface?, videoUri: Uri, loop: Boolean = true, autoPlay: Boolean = true) {
         release()
 
         val normalizedUri = if (videoUri.scheme.isNullOrEmpty()) {
@@ -29,7 +29,7 @@ class PlaybackManager(private val context: Context) {
             videoUri
         }
 
-        Log.d(TAG, "Initializing ExoPlayer with URI: $normalizedUri")
+        Log.d(TAG, "Initializing ExoPlayer with URI: $normalizedUri, autoPlay=$autoPlay")
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -57,10 +57,14 @@ class PlaybackManager(private val context: Context) {
                         Log.e(TAG, "ExoPlayer error: ${error.message}", error)
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
-                        Log.d(TAG, "Playback state changed: $playbackState")
+                        Log.d(TAG, "Playback state changed: $playbackState (READY=${Player.STATE_READY})")
+                    }
+                    override fun onRenderedFirstFrame() {
+                        Log.d(TAG, "=== RENDERED FIRST FRAME ON SURFACE! ===")
                     }
                 })
                 setMediaItem(MediaItem.fromUri(normalizedUri))
+                playWhenReady = autoPlay
                 prepare()
             }
         player = newPlayer
@@ -68,23 +72,26 @@ class PlaybackManager(private val context: Context) {
 
     fun setSurface(surface: Surface?) {
         if (surface != null && surface.isValid) {
+            Log.d(TAG, "Setting valid surface on ExoPlayer")
             player?.setVideoSurface(surface)
         } else {
+            Log.d(TAG, "Clearing video surface on ExoPlayer")
             player?.clearVideoSurface()
         }
     }
 
     fun play() {
-        Log.d(TAG, "ExoPlayer play requested")
+        Log.d(TAG, "ExoPlayer play requested (playerIsNull=${player == null})")
         player?.playWhenReady = true
     }
 
     fun pause() {
-        Log.d(TAG, "ExoPlayer pause requested")
+        Log.d(TAG, "ExoPlayer pause requested (playerIsNull=${player == null})")
         player?.playWhenReady = false
     }
 
     fun release() {
+        Log.d(TAG, "Releasing ExoPlayer instance")
         player?.let {
             it.stop()
             it.release()

@@ -1,12 +1,17 @@
 package com.example.videowallpaper.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.videowallpaper.utils.MetricsCollector
 
 @Composable
@@ -24,6 +29,22 @@ fun HomeScreen(
     val loopEnabled by viewModel.loopEnabled.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_VIDEO
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) {}
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, permissionToRequest) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(permissionToRequest)
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -56,7 +77,12 @@ fun HomeScreen(
             )
 
             Button(
-                onClick = onApplyWallpaper,
+                onClick = {
+                    if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
+                        viewModel.selectVideo(videos.first().uri)
+                    }
+                    onApplyWallpaper()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)

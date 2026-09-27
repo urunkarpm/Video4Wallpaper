@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-ComposableStatsPanel(
+fun ComposableStatsPanel(
     estimatedMw: Float,
     currentFps: Int,
     batteryOpt: Boolean,
