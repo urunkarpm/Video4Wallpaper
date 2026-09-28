@@ -59,6 +59,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val loopEnabled: StateFlow<Boolean> = settingsRepository.loopEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val pauseOnBatterySaver: StateFlow<Boolean> = settingsRepository.pauseOnBatterySaver
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     fun importVideo(uri: Uri) {
         viewModelScope.launch {
             val file = FileManager.copyUriToInternalStorage(getApplication(), uri)
@@ -84,6 +87,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setLoopEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setLoopEnabled(enabled)
+        }
+    }
+
+    fun setPauseOnBatterySaver(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setPauseOnBatterySaver(enabled)
+        }
+    }
+
+    fun deleteVideo(video: VideoEntity) {
+        viewModelScope.launch {
+            videoDao.deleteVideo(video)
+            runCatching {
+                val file = File(video.uri)
+                if (file.exists() && file.isFile) {
+                    file.delete()
+                }
+            }
+            if (selectedUri.value == video.uri) {
+                val remaining = videos.value.filter { it.id != video.id }
+                settingsRepository.setSelectedVideoUri(remaining.firstOrNull()?.uri ?: "")
+            }
         }
     }
 

@@ -25,6 +25,7 @@ fun HomeScreen(
     val videos by viewModel.videos.collectAsState()
     val selectedUri by viewModel.selectedUri.collectAsState()
     val loopEnabled by viewModel.loopEnabled.collectAsState()
+    val pauseOnBatterySaver by viewModel.pauseOnBatterySaver.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -74,6 +75,7 @@ fun HomeScreen(
                     selectedUri = selectedUri,
                     onVideoSelected = { viewModel.selectVideo(it) },
                     onImportVideo = { viewModel.importVideo(it) },
+                    onDeleteVideo = { viewModel.deleteVideo(it) },
                     onApplyWallpaper = {
                         if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
                             viewModel.selectVideo(videos.first().uri)
@@ -85,6 +87,8 @@ fun HomeScreen(
                 1 -> SettingsScreen(
                     loopEnabled = loopEnabled,
                     onLoopChanged = { viewModel.setLoopEnabled(it) },
+                    pauseOnBatterySaver = pauseOnBatterySaver,
+                    onPauseOnBatterySaverChanged = { viewModel.setPauseOnBatterySaver(it) },
                     currentVersion = viewModel.currentVersion,
                     updateState = updateState,
                     onCheckForUpdates = { viewModel.checkForUpdates() },

@@ -20,6 +20,8 @@ import com.urunkarpm.video4wallpaper.R
 fun SettingsScreen(
     loopEnabled: Boolean,
     onLoopChanged: (Boolean) -> Unit,
+    pauseOnBatterySaver: Boolean,
+    onPauseOnBatterySaverChanged: (Boolean) -> Unit,
     currentVersion: String,
     updateState: UpdateState,
     onCheckForUpdates: () -> Unit,
@@ -54,7 +56,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Playback",
+                    text = "Playback & Efficiency",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -72,7 +74,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = "Play video continuously in the background",
+                            text = "Play video continuously on the home screen",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -80,6 +82,32 @@ fun SettingsScreen(
                     Switch(
                         checked = loopEnabled,
                         onCheckedChange = onLoopChanged
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Pause on Battery Saver",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Freeze video playback when device Battery Saver is active",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = pauseOnBatterySaver,
+                        onCheckedChange = onPauseOnBatterySaverChanged
                     )
                 }
             }

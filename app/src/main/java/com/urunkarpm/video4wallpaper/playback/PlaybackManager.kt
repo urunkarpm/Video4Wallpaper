@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import android.view.Surface
-import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -46,11 +45,12 @@ class PlaybackManager(private val context: Context) {
             .build().apply {
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
                 repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
-                setAudioAttributes(
-                    AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).build(),
-                    /* handleAudioFocus= */ false
-                )
-                volume = 0f // Mute wallpaper audio by default
+                // ponytail: Disabling audio track skips MediaCodec audio decoder initialization & AudioTrack overhead.
+                // Ceiling: Wallpapers with sound won't play audio.
+                // Upgrade path: Add an audio toggle setting if audible wallpapers are ever supported.
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .build()
                 if (surface != null && surface.isValid) {
                     setVideoSurface(surface)
                 }
@@ -70,10 +70,13 @@ class PlaybackManager(private val context: Context) {
                     }
                 })
                 setMediaItem(MediaItem.fromUri(normalizedUri))
-                playWhenReady = autoPlay
                 prepare()
             }
         player = newPlayer
+
+        if (autoPlay) {
+            play()
+        }
     }
 
     fun setSurface(surface: Surface?) {
