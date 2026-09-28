@@ -26,7 +26,6 @@ fun HomeScreen(
     val selectedUri by viewModel.selectedUri.collectAsState()
     val loopEnabled by viewModel.loopEnabled.collectAsState()
     val pauseOnBatterySaver by viewModel.pauseOnBatterySaver.collectAsState()
-    val updateState by viewModel.updateState.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -90,10 +89,7 @@ fun HomeScreen(
                     pauseOnBatterySaver = pauseOnBatterySaver,
                     onPauseOnBatterySaverChanged = { viewModel.setPauseOnBatterySaver(it) },
                     currentVersion = viewModel.currentVersion,
-                    updateState = updateState,
-                    onCheckForUpdates = { viewModel.checkForUpdates() },
-                    onDownloadUpdate = { url, version -> viewModel.downloadUpdate(url, version) },
-                    onInstallUpdate = { apkUri -> viewModel.installUpdate(context, apkUri) },
+                    onCheckForUpdates = { viewModel.openGitHubReleases(context) },
                     modifier = Modifier.fillMaxSize()
                 )
             }

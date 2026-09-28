@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.view.SurfaceView
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,29 +43,24 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import com.urunkarpm.video4wallpaper.R
-import com.urunkarpm.video4wallpaper.data.db.VideoEntity
+import com.urunkarpm.video4wallpaper.data.model.VideoItem
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPickerScreen(
-    videos: List<VideoEntity>,
+    videos: List<VideoItem>,
     selectedUri: String?,
     onVideoSelected: (String) -> Unit,
     onImportVideo: (Uri) -> Unit,
-    onDeleteVideo: (VideoEntity) -> Unit = {},
+    onDeleteVideo: (VideoItem) -> Unit = {},
     onApplyWallpaper: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // ponytail: Single pinned ExoPlayer preview cuts out thumbnail pre-generation/caching across the grid.
-    // Ceiling: Only previews the currently selected video.
-    // Upgrade path: Add Coil video-frame decoder for grid item thumbnails if visual browsing across multiple videos at once is needed.
     val exoPlayer = remember(selectedUri) {
         if (selectedUri.isNullOrEmpty()) {
             null
@@ -183,14 +179,12 @@ fun VideoPickerScreen(
             if (exoPlayer != null) {
                 AndroidView(
                     factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            useController = false
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            player = exoPlayer
+                        SurfaceView(ctx).apply {
+                            exoPlayer.setVideoSurfaceView(this)
                         }
                     },
-                    update = { playerView ->
-                        playerView.player = exoPlayer
+                    update = { surfaceView ->
+                        exoPlayer.setVideoSurfaceView(surfaceView)
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -314,7 +308,7 @@ fun VideoPickerScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                items(videos, key = { it.id }) { video ->
+                items(videos, key = { it.uri }) { video ->
                     val isSelected = video.uri == selectedUri
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
@@ -327,9 +321,6 @@ fun VideoPickerScreen(
                         }
                     )
 
-                    // ponytail: Native Material 3 SwipeToDismissBox provides zero-boilerplate swipe-to-delete in either direction.
-                    // Ceiling: Direct delete without undo snackbar.
-                    // Upgrade path: Add an undo Snackbar action with Room restore if accidental deletion becomes an issue.
                     SwipeToDismissBox(
                         state = dismissState,
                         backgroundContent = {
