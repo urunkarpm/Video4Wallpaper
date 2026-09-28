@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" width="128" height="128" alt="Video Wallpaper Logo" />
+</p>
+
 # Video Wallpaper
 
 A simple Android app that lets you set any video from your phone as your live home screen and lock screen wallpaper.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
@@ -33,3 +39,10 @@ A simple Android app that lets you set any video from your phone as your live ho
 ## Permissions
 
 - **Photos & Videos / Storage**: Needed only to allow you to pick and import videos stored on your device. Your videos stay 100% on your device and are never uploaded anywhere.
+
+---
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
+
