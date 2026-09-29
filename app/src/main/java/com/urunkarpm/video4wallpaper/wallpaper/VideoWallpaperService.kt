@@ -10,6 +10,7 @@ import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.SurfaceHolder
 import androidx.core.content.ContextCompat
+import com.urunkarpm.video4wallpaper.data.model.ScalingMode
 import com.urunkarpm.video4wallpaper.data.pref.SettingsRepository
 import com.urunkarpm.video4wallpaper.playback.PlaybackManager
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,9 @@ class VideoWallpaperService : WallpaperService() {
         private var currentVideoUri: Uri? = null
         private var isLoopEnabled: Boolean = true
         private var pauseOnBatterySaver: Boolean = true
+        private var scalingMode: ScalingMode = ScalingMode.CROP
+        private var soundEnabled: Boolean = false
+        private var playbackSpeed: Float = 1.0f
 
         private val screenAndPowerReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -76,8 +80,6 @@ class VideoWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) {
             super.onVisibilityChanged(visible)
             Log.d(TAG, "onVisibilityChanged: visible=$visible, isPreview=$isPreview")
-            // Ignored intentionally: Android triggers visible=false when opening status bar, notification shade, or app drawer.
-            // Continuous smooth playback is maintained; pauses only when screen turns off or battery saver is active.
         }
 
         private fun isScreenOn(): Boolean {
@@ -96,9 +98,6 @@ class VideoWallpaperService : WallpaperService() {
             return true
         }
 
-        // ponytail: Keeps video playing continuously while screen is interactive (screen on) to eliminate status bar / app drawer stutter and 1-sec wake latency.
-        // Ceiling: Continues decoding video even when an opaque full-screen app covers the home screen until screen turns off or surface is destroyed.
-        // Upgrade path: If background app battery drain is an issue, listen to window insets or delayed visibility debouncer (e.g. 5s grace period before pausing).
         private fun updatePlaybackState() {
             if (shouldPlay()) {
                 val surface = surfaceHolder?.surface
@@ -139,6 +138,24 @@ class VideoWallpaperService : WallpaperService() {
                     updatePlaybackState()
                 }
             }
+            serviceScope.launch {
+                settingsRepository.scalingMode.collect { mode ->
+                    scalingMode = mode
+                    playbackManager.setScalingMode(mode)
+                }
+            }
+            serviceScope.launch {
+                settingsRepository.soundEnabled.collect { sound ->
+                    soundEnabled = sound
+                    playbackManager.setSoundEnabled(sound)
+                }
+            }
+            serviceScope.launch {
+                settingsRepository.playbackSpeed.collect { speed ->
+                    playbackSpeed = speed
+                    playbackManager.setPlaybackSpeed(speed)
+                }
+            }
         }
 
         private fun updatePlayer() {
@@ -147,7 +164,15 @@ class VideoWallpaperService : WallpaperService() {
             if (surface != null && surface.isValid) {
                 if (!playbackManager.hasPlayer()) {
                     Log.d(TAG, "updatePlayer: initializing ExoPlayer with URI=$uri, isPreview=$isPreview")
-                    playbackManager.initializePlayer(surface, uri, isLoopEnabled, autoPlay = shouldPlay())
+                    playbackManager.initializePlayer(
+                        surface = surface,
+                        videoUri = uri,
+                        loop = isLoopEnabled,
+                        autoPlay = shouldPlay(),
+                        scalingMode = scalingMode,
+                        soundEnabled = soundEnabled,
+                        playbackSpeed = playbackSpeed
+                    )
                 } else {
                     playbackManager.setSurface(surface)
                     if (shouldPlay()) {

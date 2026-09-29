@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.urunkarpm.video4wallpaper.data.model.ScalingMode
 import com.urunkarpm.video4wallpaper.data.model.VideoItem
 import com.urunkarpm.video4wallpaper.data.pref.SettingsRepository
 import com.urunkarpm.video4wallpaper.utils.FileManager
@@ -38,22 +39,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val pauseOnBatterySaver: StateFlow<Boolean> = settingsRepository.pauseOnBatterySaver
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val scalingMode: StateFlow<ScalingMode> = settingsRepository.scalingMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ScalingMode.CROP)
+
+    val soundEnabled: StateFlow<Boolean> = settingsRepository.soundEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val playbackSpeed: StateFlow<Float> = settingsRepository.playbackSpeed
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 1.0f)
+
     init {
         loadVideos()
     }
 
     fun loadVideos() {
-        val files = wallpaperDir.listFiles()
-            ?.filter { it.isFile }
-            ?.sortedByDescending { it.lastModified() }
-            ?.map {
-                VideoItem(
-                    uri = it.absolutePath,
-                    fileName = it.name,
-                    fileSizeBytes = it.length()
-                )
-            } ?: emptyList()
-        _videos.value = files
+        viewModelScope.launch(Dispatchers.IO) {
+            val files = wallpaperDir.listFiles()
+                ?.filter { it.isFile && it.extension.lowercase() in listOf("mp4", "webm", "gif", "mkv", "3gp") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.map { file ->
+                    FileManager.loadVideoItem(getApplication(), file)
+                } ?: emptyList()
+            _videos.value = files
+        }
     }
 
     fun importVideo(uri: Uri) {
@@ -72,6 +80,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun renameVideo(video: VideoItem, newDisplayName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = File(video.uri)
+            if (file.exists()) {
+                FileManager.updateVideoDisplayName(file, newDisplayName)
+                loadVideos()
+            }
+        }
+    }
+
+    fun deleteVideo(video: VideoItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val file = File(video.uri)
+            FileManager.deleteVideoAndMetadata(file)
+            loadVideos()
+            if (selectedUri.value == video.uri) {
+                val remaining = _videos.value
+                settingsRepository.setSelectedVideoUri(remaining.firstOrNull()?.uri ?: "")
+            }
+        }
+    }
+
     fun setLoopEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setLoopEnabled(enabled)
@@ -84,17 +114,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteVideo(video: VideoItem) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val file = File(video.uri)
-            if (file.exists() && file.isFile) {
-                file.delete()
-            }
-            loadVideos()
-            if (selectedUri.value == video.uri) {
-                val remaining = _videos.value
-                settingsRepository.setSelectedVideoUri(remaining.firstOrNull()?.uri ?: "")
-            }
+    fun setScalingMode(mode: ScalingMode) {
+        viewModelScope.launch {
+            settingsRepository.setScalingMode(mode)
+        }
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setSoundEnabled(enabled)
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        viewModelScope.launch {
+            settingsRepository.setPlaybackSpeed(speed)
         }
     }
 

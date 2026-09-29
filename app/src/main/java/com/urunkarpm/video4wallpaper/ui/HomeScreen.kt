@@ -26,6 +26,9 @@ fun HomeScreen(
     val selectedUri by viewModel.selectedUri.collectAsState()
     val loopEnabled by viewModel.loopEnabled.collectAsState()
     val pauseOnBatterySaver by viewModel.pauseOnBatterySaver.collectAsState()
+    val scalingMode by viewModel.scalingMode.collectAsState()
+    val soundEnabled by viewModel.soundEnabled.collectAsState()
+    val playbackSpeed by viewModel.playbackSpeed.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -72,8 +75,12 @@ fun HomeScreen(
                 0 -> VideoPickerScreen(
                     videos = videos,
                     selectedUri = selectedUri,
+                    scalingMode = scalingMode,
+                    soundEnabled = soundEnabled,
+                    playbackSpeed = playbackSpeed,
                     onVideoSelected = { viewModel.selectVideo(it) },
                     onImportVideo = { viewModel.importVideo(it) },
+                    onRenameVideo = { video, newName -> viewModel.renameVideo(video, newName) },
                     onDeleteVideo = { viewModel.deleteVideo(it) },
                     onApplyWallpaper = {
                         if (selectedUri.isNullOrEmpty() && videos.isNotEmpty()) {
@@ -88,6 +95,12 @@ fun HomeScreen(
                     onLoopChanged = { viewModel.setLoopEnabled(it) },
                     pauseOnBatterySaver = pauseOnBatterySaver,
                     onPauseOnBatterySaverChanged = { viewModel.setPauseOnBatterySaver(it) },
+                    scalingMode = scalingMode,
+                    onScalingModeChanged = { viewModel.setScalingMode(it) },
+                    soundEnabled = soundEnabled,
+                    onSoundEnabledChanged = { viewModel.setSoundEnabled(it) },
+                    playbackSpeed = playbackSpeed,
+                    onPlaybackSpeedChanged = { viewModel.setPlaybackSpeed(it) },
                     currentVersion = viewModel.currentVersion,
                     onCheckForUpdates = { viewModel.openGitHubReleases(context) },
                     modifier = Modifier.fillMaxSize()

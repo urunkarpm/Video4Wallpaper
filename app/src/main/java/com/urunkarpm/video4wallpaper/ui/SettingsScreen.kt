@@ -6,23 +6,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.urunkarpm.video4wallpaper.R
+import com.urunkarpm.video4wallpaper.data.model.ScalingMode
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     loopEnabled: Boolean,
     onLoopChanged: (Boolean) -> Unit,
     pauseOnBatterySaver: Boolean,
     onPauseOnBatterySaverChanged: (Boolean) -> Unit,
+    scalingMode: ScalingMode,
+    onScalingModeChanged: (ScalingMode) -> Unit,
+    soundEnabled: Boolean,
+    onSoundEnabledChanged: (Boolean) -> Unit,
+    playbackSpeed: Float,
+    onPlaybackSpeedChanged: (Float) -> Unit,
     currentVersion: String,
     onCheckForUpdates: () -> Unit,
     modifier: Modifier = Modifier
@@ -42,7 +49,7 @@ fun SettingsScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        // Playback Card
+        // Display & Scaling Mode Card
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
@@ -51,14 +58,135 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Playback & Efficiency",
+                    text = "Display & Scaling",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
 
+                Text(
+                    text = "Choose how video is scaled on home & lock screens",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                ScalingMode.entries.forEach { mode ->
+                    val isSelected = scalingMode == mode
+                    Card(
+                        onClick = { onScalingModeChanged(mode) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                            }
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { onScalingModeChanged(mode) }
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = mode.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Playback & Audio Card
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Playback Options",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Sound Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = "Wallpaper Audio",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Enable sound playback while on home screen",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = soundEnabled,
+                        onCheckedChange = onSoundEnabledChanged
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Playback Speed
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Playback Speed",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                        speeds.forEach { speed ->
+                            val isSelected = playbackSpeed == speed
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onPlaybackSpeedChanged(speed) },
+                                label = { Text("${speed}x") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Loop Switch
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -72,7 +200,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = "Play video continuously on the home screen",
+                            text = "Play video continuously on loop",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -85,6 +213,7 @@ fun SettingsScreen(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+                // Battery Saver Switch
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -98,7 +227,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = "Freeze video playback when device Battery Saver is active",
+                            text = "Freeze video playback when Battery Saver mode is on",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -125,7 +254,8 @@ fun SettingsScreen(
                 Text(
                     text = "Updates",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
 
                 Row(

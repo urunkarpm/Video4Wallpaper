@@ -7,9 +7,11 @@ import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import com.urunkarpm.video4wallpaper.data.model.ScalingMode
 import java.io.File
 
 class PlaybackManager(private val context: Context) {
@@ -21,7 +23,15 @@ class PlaybackManager(private val context: Context) {
 
     fun hasPlayer(): Boolean = player != null
 
-    fun initializePlayer(surface: Surface?, videoUri: Uri, loop: Boolean = true, autoPlay: Boolean = true) {
+    fun initializePlayer(
+        surface: Surface?,
+        videoUri: Uri,
+        loop: Boolean = true,
+        autoPlay: Boolean = true,
+        scalingMode: ScalingMode = ScalingMode.CROP,
+        soundEnabled: Boolean = false,
+        playbackSpeed: Float = 1.0f
+    ) {
         release()
 
         val normalizedUri = if (videoUri.scheme.isNullOrEmpty()) {
@@ -30,7 +40,7 @@ class PlaybackManager(private val context: Context) {
             videoUri
         }
 
-        Log.d(TAG, "Initializing ExoPlayer with URI: $normalizedUri, autoPlay=$autoPlay")
+        Log.d(TAG, "Initializing ExoPlayer with URI: $normalizedUri, autoPlay=$autoPlay, scalingMode=$scalingMode, soundEnabled=$soundEnabled, speed=$playbackSpeed")
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -43,23 +53,20 @@ class PlaybackManager(private val context: Context) {
         val newPlayer = ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
             .build().apply {
-                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+                videoScalingMode = scalingMode.exoScalingMode
                 repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
-                // ponytail: Disabling audio track skips MediaCodec audio decoder initialization & AudioTrack overhead.
-                // Ceiling: Wallpapers with sound won't play audio.
-                // Upgrade path: Add an audio toggle setting if audible wallpapers are ever supported.
+                playbackParameters = PlaybackParameters(playbackSpeed)
+                
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !soundEnabled)
                     .build()
+
                 if (surface != null && surface.isValid) {
                     setVideoSurface(surface)
                 }
                 addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
                         Log.e(TAG, "ExoPlayer error: ${error.message}", error)
-                        // ponytail: Instant re-prepare on codec crash when surface buffers recycle.
-                        // Ceiling: Repeated fatal errors loop re-preparing.
-                        // Upgrade path: Add backoff counter if corrupt video file continuously faults.
                         prepare()
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -87,6 +94,22 @@ class PlaybackManager(private val context: Context) {
             Log.d(TAG, "Clearing video surface on ExoPlayer")
             player?.clearVideoSurface()
         }
+    }
+
+    fun setScalingMode(mode: ScalingMode) {
+        player?.videoScalingMode = mode.exoScalingMode
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        player?.let { p ->
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, !enabled)
+                .build()
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        player?.playbackParameters = PlaybackParameters(speed)
     }
 
     fun play() {
