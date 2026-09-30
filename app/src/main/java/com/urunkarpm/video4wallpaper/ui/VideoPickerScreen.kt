@@ -9,18 +9,24 @@ import android.view.SurfaceView
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -30,12 +36,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +55,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import com.urunkarpm.video4wallpaper.R
 import com.urunkarpm.video4wallpaper.data.model.ScalingMode
 import com.urunkarpm.video4wallpaper.data.model.VideoItem
 import kotlinx.coroutines.delay
@@ -118,7 +123,6 @@ fun VideoPickerScreen(
         }
     }
 
-    // Poll position & duration for preview seekbar
     LaunchedEffect(exoPlayer) {
         val player = exoPlayer ?: return@LaunchedEffect
         while (true) {
@@ -166,314 +170,291 @@ fun VideoPickerScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher_round),
-                    contentDescription = "App Logo",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-                Column {
-                    Text(
-                        text = "Video Wallpaper",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Text(
-                        text = "Mode: ${scalingMode.label}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            Button(
-                onClick = {
-                    val hasPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        permissionToRequest
-                    ) == PackageManager.PERMISSION_GRANTED
+    val launchVideoPicker = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            permissionToRequest
+        ) == PackageManager.PERMISSION_GRANTED
 
-                    if (hasPermission) {
-                        pickerLauncher.launch("video/*")
-                    } else {
-                        permissionLauncher.launch(permissionToRequest)
-                    }
-                },
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Import Video")
-            }
+        if (hasPermission) {
+            pickerLauncher.launch("video/*")
+        } else {
+            permissionLauncher.launch(permissionToRequest)
         }
+    }
 
-        // Preview Card with Player Controls & Time Indicator
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (exoPlayer != null) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AndroidView(
-                        factory = { ctx ->
-                            SurfaceView(ctx).apply {
-                                exoPlayer.setVideoSurfaceView(this)
-                            }
-                        },
-                        update = { surfaceView ->
-                            exoPlayer.setVideoSurfaceView(surfaceView)
-                        },
+            // HERO PREVIEW PLAYER ITEM (Spans full width)
+            item(span = { GridItemSpan(2) }) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ElevatedCard(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(16.dp))
-                    )
-
-                    // Overlay Player Controls
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.15f))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .fillMaxWidth()
+                            .height(240.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
                     ) {
-                        // Top bar inside preview: Mute & Speed indicators
+                        if (exoPlayer != null) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        SurfaceView(ctx).apply {
+                                            exoPlayer.setVideoSurfaceView(this)
+                                        }
+                                    },
+                                    update = { surfaceView ->
+                                        exoPlayer.setVideoSurfaceView(surfaceView)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(24.dp))
+                                )
+
+                                // Glassmorphism Controls Overlay
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Black.copy(alpha = 0.45f),
+                                                    Color.Transparent,
+                                                    Color.Black.copy(alpha = 0.75f)
+                                                )
+                                            )
+                                        )
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Top info chips
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            color = Color.Black.copy(alpha = 0.55f),
+                                            shape = CircleShape
+                                        ) {
+                                            Text(
+                                                text = "${playbackSpeed}x • ${scalingMode.label}",
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { isMuted = !isMuted },
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                        ) {
+                                            Text(
+                                                text = if (isMuted) "🔇" else "🔊",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+
+                                    // Center Play/Pause button
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                if (exoPlayer.isPlaying) {
+                                                    exoPlayer.pause()
+                                                } else {
+                                                    exoPlayer.play()
+                                                }
+                                                isPlaying = exoPlayer.isPlaying
+                                            },
+                                            modifier = Modifier
+                                                .size(52.dp)
+                                                .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Toggle Play",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Bottom seekbar & duration
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Slider(
+                                            value = if (durationMs > 0) currentPositionMs.toFloat() else 0f,
+                                            onValueChange = { newPos ->
+                                                currentPositionMs = newPos.toLong()
+                                                exoPlayer.seekTo(newPos.toLong())
+                                            },
+                                            valueRange = 0f..(if (durationMs > 0) durationMs.toFloat() else 1f),
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = MaterialTheme.colorScheme.primary,
+                                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                                inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+                                            ),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(22.dp)
+                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = formatDuration(currentPositionMs),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = formatDuration(durationMs),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                    Text(
+                                        text = if (videos.isEmpty()) "Import a video to preview" else "Select a video from your gallery below",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        // Apply as Live Wallpaper Button
+                        Button(
+                            onClick = onApplyWallpaper,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            enabled = selectedUri != null || videos.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Apply as Live Wallpaper",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+
+                        // Section Title: Gallery Videos
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Badge(
-                                containerColor = Color.Black.copy(alpha = 0.65f),
-                                contentColor = Color.White
-                            ) {
-                                Text(
-                                    text = "${playbackSpeed}x • ${scalingMode.label}",
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
-                            IconButton(
-                                onClick = { isMuted = !isMuted },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                            ) {
-                                Text(
-                                    text = if (isMuted) "🔇" else "🔊",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                            Text(
+                                text = "Wallpaper Collection",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (videos.isNotEmpty()) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Text(
+                                        text = "${videos.size} videos",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
                             }
                         }
+                    }
+                }
+            }
 
-                        // Play / Pause center toggle
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    if (exoPlayer.isPlaying) {
-                                        exoPlayer.pause()
-                                    } else {
-                                        exoPlayer.play()
-                                    }
-                                    isPlaying = exoPlayer.isPlaying
-                                },
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-
-                        // Bottom Seekbar & Duration
+            // EMPTY GALLERY STATE
+            if (videos.isEmpty()) {
+                item(span = { GridItemSpan(2) }) {
+                    OutlinedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Slider(
-                                value = if (durationMs > 0) currentPositionMs.toFloat() else 0f,
-                                onValueChange = { newPos ->
-                                    currentPositionMs = newPos.toLong()
-                                    exoPlayer.seekTo(newPos.toLong())
-                                },
-                                valueRange = 0f..(if (durationMs > 0) durationMs.toFloat() else 1f),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.4f)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(24.dp)
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Text(
+                                text = "Your gallery is empty",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "Import MP4, WebM, or GIF files to set smooth animated wallpapers on your home or lock screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = launchVideoPicker,
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text(
-                                    text = formatDuration(currentPositionMs),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = formatDuration(durationMs),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White
-                                )
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Import First Video")
                             }
                         }
                     }
                 }
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Text(
-                            text = if (videos.isEmpty()) "Import a video to preview" else "Select a video below to preview",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        // Apply as Live Wallpaper Button
-        Button(
-            onClick = onApplyWallpaper,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            enabled = selectedUri != null || videos.isNotEmpty()
-        ) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Apply as Live Wallpaper",
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
-
-        // Section Title: Your Videos
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Your Videos",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            if (videos.isNotEmpty()) {
-                Text(
-                    text = "${videos.size} available",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Videos List or Empty State
-        if (videos.isEmpty()) {
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "No videos added yet",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "Import MP4, WebM, or GIF videos to use as your live home/lock screen wallpaper.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                    FilledTonalButton(
-                        onClick = {
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context,
-                                permissionToRequest
-                            ) == PackageManager.PERMISSION_GRANTED
-
-                            if (hasPermission) {
-                                pickerLauncher.launch("video/*")
-                            } else {
-                                permissionLauncher.launch(permissionToRequest)
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Pick Video")
-                    }
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
+                // 2-COLUMN GRID ITEMS
                 items(videos, key = { it.uri }) { video ->
                     val isSelected = video.uri == selectedUri
                     var showMenu by remember { mutableStateOf(false) }
@@ -481,29 +462,24 @@ fun VideoPickerScreen(
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (isSelected) {
-                                MaterialTheme.colorScheme.primaryContainer
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                             } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             }
                         ),
-                        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
-                        shape = RoundedCornerShape(14.dp),
+                        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                        shape = RoundedCornerShape(18.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onVideoSelected(video.uri) }
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Video Thumbnail Card
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // Thumbnail Preview Cover (aspect height)
                             Box(
                                 modifier = Modifier
-                                    .size(width = 72.dp, height = 54.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .fillMaxWidth()
+                                    .height(115.dp)
+                                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.BottomEnd
                             ) {
@@ -529,98 +505,97 @@ fun VideoPickerScreen(
                                     )
                                 }
 
+                                // Selection check badge on top-left
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(6.dp)
+                                            .size(22.dp)
+                                    )
+                                }
+
+                                // Duration Badge on bottom-right
                                 if (video.durationMs > 0) {
                                     Surface(
                                         color = Color.Black.copy(alpha = 0.75f),
-                                        shape = RoundedCornerShape(topStart = 4.dp),
+                                        shape = RoundedCornerShape(topStart = 6.dp),
                                         modifier = Modifier.padding(1.dp)
                                     ) {
                                         Text(
                                             text = formatDuration(video.durationMs),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
                             }
 
-                            // Details
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            // Card Info & Overflow Menu
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = video.displayName,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                val resolutionStr = if (video.width > 0 && video.height > 0) "${video.width}x${video.height} • " else ""
-                                val mb = String.format(Locale.US, "%.1f", video.fileSizeBytes / (1024f * 1024f))
-                                Text(
-                                    text = "$resolutionStr$mb MB",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = video.displayName,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val mb = String.format(Locale.US, "%.1f", video.fileSizeBytes / (1024f * 1024f))
+                                    Text(
+                                        text = "$mb MB",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
 
-                                if (isSelected) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(top = 2.dp)
+                                Box {
+                                    IconButton(
+                                        onClick = { showMenu = true },
+                                        modifier = Modifier.size(30.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = "Active Wallpaper",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "Options",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                }
-                            }
 
-                            // Overflow Menu
-                            Box {
-                                IconButton(
-                                    onClick = { showMenu = true },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = "Options",
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Rename") },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                        onClick = {
-                                            showMenu = false
-                                            videoToRename = video
-                                            renameText = video.displayName
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                        onClick = {
-                                            showMenu = false
-                                            videoToDelete = video
-                                        }
-                                    )
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Rename") },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                videoToRename = video
+                                                renameText = video.displayName
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                            onClick = {
+                                                showMenu = false
+                                                videoToDelete = video
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -628,6 +603,18 @@ fun VideoPickerScreen(
                 }
             }
         }
+
+        // FLOATING ACTION BUTTON (FAB) FOR IMPORTING VIDEO
+        ExtendedFloatingActionButton(
+            onClick = launchVideoPicker,
+            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            text = { Text("Import Video") },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        )
     }
 
     // Rename Dialog

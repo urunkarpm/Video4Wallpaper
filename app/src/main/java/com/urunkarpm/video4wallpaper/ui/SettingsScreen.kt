@@ -43,16 +43,11 @@ fun SettingsScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Screen Header
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
         // Display & Scaling Mode Card
-        OutlinedCard(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -68,7 +63,7 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Choose how video is scaled on home & lock screens",
+                    text = "Choose how video fits on your home & lock screens",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -84,7 +79,7 @@ fun SettingsScreen(
                                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                             }
                         ),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -102,7 +97,7 @@ fun SettingsScreen(
                                 Text(
                                     text = mode.label,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = mode.description,
@@ -117,18 +112,19 @@ fun SettingsScreen(
         }
 
         // Playback & Audio Card
-        OutlinedCard(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Playback Options",
+                    text = "Playback & Energy Options",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -136,16 +132,14 @@ fun SettingsScreen(
 
                 // Sound Toggle
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                         Text(
                             text = "Wallpaper Audio",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Text(
                             text = "Enable sound playback while on home screen",
@@ -159,17 +153,17 @@ fun SettingsScreen(
                     )
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
                 // Playback Speed
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Playback Speed",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
                         speeds.forEach { speed ->
@@ -177,27 +171,25 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { onPlaybackSpeedChanged(speed) },
-                                label = { Text("${speed}x") },
+                                label = { Text("${speed}x", style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
                 // Loop Switch
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                         Text(
                             text = "Loop Video",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Text(
                             text = "Play video continuously on loop",
@@ -211,23 +203,21 @@ fun SettingsScreen(
                     )
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
                 // Battery Saver Switch
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                         Text(
                             text = "Pause on Battery Saver",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Text(
-                            text = "Freeze video playback when Battery Saver mode is on",
+                            text = "Freeze video playback when Battery Saver mode is active",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -241,9 +231,10 @@ fun SettingsScreen(
         }
 
         // GitHub Updates Card
-        OutlinedCard(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -273,7 +264,7 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = "v$currentVersion",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -297,7 +288,7 @@ fun SettingsScreen(
         // About Card
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -319,7 +310,7 @@ fun SettingsScreen(
                     Column {
                         Text(
                             text = "Video4Wallpaper",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
                             text = "com.urunkarpm.video4wallpaper",
